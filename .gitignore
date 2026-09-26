@@ -1,0 +1,8 @@
+.env
+*.db
+__pycache__/
+*.pyc
+.pytest_cache/
+# Internal working docs — kept locally, not committed. README.md stays.
+*.md
+!README.md

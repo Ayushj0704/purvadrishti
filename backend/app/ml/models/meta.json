@@ -1,0 +1,96 @@
+{
+  "model_name": "cashout_xgb",
+  "model_version": "0.3.0",
+  "feature_version": "0.1.0",
+  "trained_at": "2026-09-26T20:38:41.425491Z",
+  "features": [
+    "transaction_amount",
+    "time_since_complaint_min",
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "distance_victim_to_candidate_m",
+    "distance_ref_to_candidate_m",
+    "cross_state_flag",
+    "nearby_atm_count",
+    "fraud_withdrawals_7d",
+    "fraud_withdrawals_30d",
+    "avg_withdrawal_amount",
+    "hour_match_score",
+    "src_recent_tx_count",
+    "dst_recent_tx_count",
+    "suspect_info_count",
+    "geo_velocity_kmh",
+    "travel_impossible_flag",
+    "dst_in_degree",
+    "src_fan_out",
+    "chain_depth",
+    "l2_count"
+  ],
+  "score_type": "raw_xgb_proba_uncalibrated",
+  "calibration": "deferred (isotonic flattened scores); raw proba + validation-tuned thresholds",
+  "horizons": {
+    "30": {
+      "minutes": 30,
+      "positives": 355,
+      "val_pr_auc": 0.027461767915650945,
+      "test_pr_auc": 0.020873218587462296,
+      "test_roc_auc": 0.7962537842238858,
+      "test_top5_recall": 0.5084745762711864,
+      "test_top1_recall": 0.0847457627118644,
+      "thresholds": {
+        "HIGH": 0.296,
+        "CRITICAL": 0.623
+      }
+    },
+    "60": {
+      "minutes": 60,
+      "positives": 772,
+      "val_pr_auc": 0.06260304999215249,
+      "test_pr_auc": 0.04754099049654622,
+      "test_roc_auc": 0.793801648729566,
+      "test_top5_recall": 0.5447154471544715,
+      "test_top1_recall": 0.12195121951219512,
+      "thresholds": {
+        "HIGH": 0.594,
+        "CRITICAL": 0.797
+      }
+    },
+    "240": {
+      "minutes": 240,
+      "positives": 1138,
+      "val_pr_auc": 0.06641633990917718,
+      "test_pr_auc": 0.07021166095336594,
+      "test_roc_auc": 0.8156275273073383,
+      "test_top5_recall": 0.6081871345029239,
+      "test_top1_recall": 0.13450292397660818,
+      "thresholds": {
+        "HIGH": 0.694,
+        "CRITICAL": 0.841
+      }
+    },
+    "720": {
+      "minutes": 720,
+      "positives": 1150,
+      "val_pr_auc": 0.06482614330584793,
+      "test_pr_auc": 0.07242219015170896,
+      "test_roc_auc": 0.8167880212010412,
+      "test_top5_recall": 0.6337209302325582,
+      "test_top1_recall": 0.14534883720930233,
+      "thresholds": {
+        "HIGH": 0.695,
+        "CRITICAL": 0.843
+      }
+    }
+  },
+  "horizon_minutes": 60,
+  "thresholds": {
+    "HIGH": 0.594,
+    "CRITICAL": 0.797
+  },
+  "val_pr_auc": 0.06260304999215249,
+  "test_pr_auc": 0.04754099049654622,
+  "test_roc_auc": 0.793801648729566,
+  "test_top5_recall": 0.5447154471544715,
+  "test_top1_recall": 0.12195121951219512
+}

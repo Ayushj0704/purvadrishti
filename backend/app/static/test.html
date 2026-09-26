@@ -1,0 +1,9 @@
+<!doctype html><html><body>
+<h3>PurvaDrishti test page (for backend testing until frontend connects)</h3>
+<p>Swagger: <a href="/docs">/docs</a> | SSE: <code>/api/v1/events/stream</code></p>
+<pre id="log"></pre>
+<script>
+const es = new EventSource('/api/v1/events/stream');
+es.onmessage = e => { document.getElementById('log').textContent += e.data + '\n'; };
+</script>
+</body></html>

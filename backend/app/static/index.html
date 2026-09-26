@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PurvaDrishti — Temp Test Dashboard (DEMO / SYNTHETIC DATA)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#0f172a;color:#e2e8f0}
+header{background:#1e293b;padding:10px 16px;display:flex;gap:12px;align-items:center}
+.badge{background:#f59e0b;color:#111;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:bold}
+main{display:grid;grid-template-columns:360px 1fr;gap:12px;padding:12px}
+.panel{background:#1e293b;border-radius:8px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:12px;margin:6px 0 2px;color:#94a3b8}
+input,select{width:100%;padding:6px;border-radius:4px;border:1px solid #475569;background:#0f172a;color:#e2e8f0}
+button{background:#2563eb;color:#fff;border:0;border-radius:4px;padding:8px 12px;margin-top:8px;cursor:pointer;width:100%}
+button:hover{background:#1d4ed8}
+#map{height:520px;border-radius:8px}
+table{width:100%;font-size:12px;border-collapse:collapse}
+td,th{border-bottom:1px solid #334155;padding:4px;text-align:left}
+.CRITICAL{color:#f87171;font-weight:bold}.HIGH{color:#fb923c}.MEDIUM{color:#facc15}.LOW{color:#94a3b8}
+#log{background:#020617;height:140px;overflow:auto;font-size:12px;padding:8px;border-radius:4px}
+a{color:#93c5fd}
+</style>
+</head>
+<body>
+<header>
+<b>PurvaDrishti</b><span class="badge">DEMO / SYNTHETIC DATA</span>
+<span style="font-size:12px;color:#94a3b8">Temp dashboard — Swagger: <a href="/docs">/docs</a></span>
+<span id="who" style="font-size:12px;color:#94a3b8;margin-left:auto"></span>
+</header>
+<main>
+<div>
+<div class="panel">
+<h3 style="margin:0 0 6px">0. Login (demo RBAC)</h3>
+<div style="display:flex;gap:6px">
+<select id="f_user" style="flex:1"><option>lea</option><option>admin</option><option>bank</option><option>i4c</option></select>
+<input id="f_pass" type="password" value="demo" style="flex:1">
+<button onclick="doLogin()" style="width:auto;margin-top:0">Login</button>
+</div>
+<div id="loginOut" style="font-size:12px;margin-top:4px;color:#94a3b8">Not logged in — demo mode (AUTH_ENABLED=false), all open.</div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">1a. Simulate I4C portal fetch</h3>
+<button onclick="portalFetch()">⬇ Fetch random case (portal demo)</button>
+<div id="portalOut" style="font-size:12px;margin-top:6px"></div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">1b. Create case (manual)</h3>
+<label>Fraud type</label>
+<select id="f_fraud"><option>UPI</option><option>Card</option><option>Internet banking</option><option>Wallet</option></select>
+<label>Amount (₹)</label><input id="f_amt" type="number" value="120000">
+<label>Victim city</label>
+<select id="f_city">
+<option value="28.61,77.20,Delhi">Delhi</option>
+<option value="26.91,75.78,Rajasthan">Jaipur</option>
+<option value="28.41,77.02,Haryana">Gurugram</option>
+<option value="28.57,77.32,Uttar Pradesh">Noida</option>
+<option value="30.90,75.85,Punjab">Ludhiana</option>
+<option value="19.07,72.87,Maharashtra">Mumbai</option>
+<option value="22.57,88.36,West Bengal">Kolkata</option>
+<option value="13.08,80.27,Tamil Nadu">Chennai</option>
+<option value="12.97,77.59,Karnataka">Bengaluru</option>
+<option value="17.38,78.48,Telangana">Hyderabad</option>
+<option value="23.03,72.58,Gujarat">Ahmedabad</option>
+<option value="23.26,77.41,Madhya Pradesh">Bhopal</option>
+<option value="25.61,85.14,Bihar">Patna</option>
+<option value="9.93,76.27,Kerala">Kochi</option>
+<option value="26.14,91.74,Assam">Guwahati</option>
+</select>
+<label>Mule/ref city (money-flow point — try different state!)</label>
+<select id="f_ref">
+<option value="26.91,75.78">Jaipur — cross-state demo</option>
+<option value="28.61,77.20">Delhi</option>
+<option value="19.07,72.87">Mumbai</option>
+<option value="12.97,77.59">Bengaluru</option>
+<option value="22.57,88.36">Kolkata</option>
+<option value="28.41,77.02">Gurugram</option>
+<option value="30.90,75.85">Ludhiana</option>
+<option value="13.08,80.27">Chennai</option>
+<option value="17.38,78.48">Hyderabad</option>
+</select>
+<button onclick="createCase()">Create case</button>
+<div id="caseOut" style="font-size:12px;margin-top:6px"></div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">2. Predict (top-5 cash-out)</h3>
+<button onclick="predict()">Run prediction (60 min)</button>
+<div id="predOut" style="margin-top:6px"></div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">3. Alerts</h3>
+<button onclick="loadAlerts()">Refresh alerts</button>
+<div id="alerts" style="margin-top:6px;font-size:12px"></div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">4. Investigator (LEA)</h3>
+<button onclick="loadTimeline()">Timeline</button>
+<button onclick="loadTrail()">Money trail</button>
+<button onclick="genReport()">Draft report</button>
+<div id="lea" style="margin-top:6px;font-size:12px"></div>
+</div>
+<div class="panel">
+<h3 style="margin:0 0 6px">Live events (SSE)</h3>
+<div id="log"></div>
+</div>
+</div>
+<div>
+<div class="panel">
+<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+<div><label>State</label><select id="f_hstate" style="width:150px">
+<option value="">All states</option><option>Delhi</option><option>Rajasthan</option>
+<option>Haryana</option><option>Uttar Pradesh</option><option>Punjab</option>
+<option>Maharashtra</option><option>West Bengal</option><option>Tamil Nadu</option>
+<option>Karnataka</option><option>Telangana</option><option>Gujarat</option>
+<option>Madhya Pradesh</option><option>Bihar</option><option>Kerala</option><option>Assam</option>
+</select></div>
+<div><label>Min risk</label><select id="f_hrisk" style="width:110px">
+<option value="">All levels</option><option>CRITICAL</option><option>HIGH</option><option>MEDIUM</option><option>LOW</option>
+</select></div>
+<div><label>Min score</label><input id="f_hscore" type="number" step="0.01" min="0" max="1" value="0" style="width:80px"></div>
+<div><label>Category</label><select id="f_hcat" style="width:130px">
+<option value="">All crime</option><option>UPI</option><option>Card</option><option>Internet banking</option><option>Wallet</option>
+</select></div>
+<div><label>Time</label><select id="f_htime" style="width:110px">
+<option value="">All time</option><option value="1">Last 1h</option><option value="24">Last 24h</option><option value="168">Last 7d</option>
+</select></div>
+<div><button onclick="loadHotspots()" style="width:auto">↻ Reload heatmap</button></div>
+</div>
+<div style="font-size:12px;margin:6px 0" id="hstats"></div>
+<div style="font-size:12px;margin-bottom:6px">
+<span style="color:#ef4444">■</span> CRITICAL <span style="color:#f97316">■</span> HIGH
+<span style="color:#eab308">■</span> MEDIUM <span style="color:#64748b">■</span> LOW
+<span style="color:#94a3b8">— hexagons = H3 risk cells, circles = predicted ATMs</span>
+</div>
+<div id="map" style="margin-top:8px"></div>
+</div>
+</div>
+</main>
+<script>
+let CASE_ID=null;
+let TOKEN=localStorage.getItem('pd_token')||'';
+let ROLE=localStorage.getItem('pd_role')||'';
+async function api(path,opts={}){
+  opts.headers=Object.assign({'Content-Type':'application/json'},opts.headers||{});
+  if(TOKEN)opts.headers['Authorization']='Bearer '+TOKEN;
+  const r=await fetch(path,opts);
+  if(r.status===401||r.status===403){log('AUTH needed — login first (panel 0)');}
+  return r;
+}
+function showWho(){document.getElementById('who').textContent=ROLE?('role: '+ROLE):'';
+  document.getElementById('loginOut').textContent=ROLE?('Logged in as '+ROLE):'Not logged in — demo mode (AUTH_ENABLED=false), all open.';}
+async function doLogin(){
+  const u=document.getElementById('f_user').value,p=document.getElementById('f_pass').value;
+  const r=await api('/api/v1/auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})}).then(r=>r.json());
+  if(r.access_token){TOKEN=r.access_token;ROLE=r.role;localStorage.setItem('pd_token',TOKEN);localStorage.setItem('pd_role',ROLE);log('logged in: '+ROLE);}showWho();
+}
+async function portalFetch(){
+  const r=await api('/api/v1/cases/samples?limit=20').then(r=>r.json());
+  if(!r.length){document.getElementById('portalOut').textContent='No seeded cases — run seed.py';return;}
+  const c=r[Math.floor(Math.random()*r.length)];
+  CASE_ID=c.case_id;
+  document.getElementById('portalOut').innerHTML='Portal → case <b>#'+c.case_id+'</b> ('+c.external_case_id+') '+c.subcategory+' ₹'+c.amount+' — '+c.complainant_state+' → '+c.incident_state+'<br>Ab Step 2 (predict) dabao.';
+  log('portal fetch: case #'+CASE_ID);
+}
+const map=L.map('map').setView([27.5,76.5],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+let layer=L.layerGroup().addTo(map);
+const color=r=>r==='CRITICAL'?'#ef4444':r==='HIGH'?'#f97316':r==='MEDIUM'?'#eab308':'#64748b';
+function log(m){const d=document.getElementById('log');d.innerHTML+=new Date().toLocaleTimeString()+' '+m+'<br>';d.scrollTop=d.scrollHeight;}
+async function createCase(){
+  const [la,lo,st]=document.getElementById('f_city').value.split(',');
+  const r=await api('/api/v1/cases',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fraud_type:document.getElementById('f_fraud').value,
+      amount:+document.getElementById('f_amt').value,
+      victim_location:{lat:+la,lon:+lo},complainant_state:st,incident_state:st})}).then(r=>r.json());
+  CASE_ID=r.case_id;
+  document.getElementById('caseOut').innerHTML='Case <b>#'+CASE_ID+'</b> ('+r.external_case_id+')';
+  log('case created #'+CASE_ID);
+}
+async function predict(){
+  if(!CASE_ID)return alert('Pehle case banao (step 1)');
+  const [rla,rlo]=document.getElementById('f_ref').value.split(',');
+  const r=await api('/api/v1/cases/'+CASE_ID+'/predictions',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({horizon_minutes:60,ref_lat:+rla,ref_lon:+rlo})}).then(r=>r.json());
+  let h='<div style="font-size:11px;color:#fbbf24;margin-bottom:4px">'+(r.basis_note||'')+'</div><table><tr><th>ATM</th><th>60m</th><th>Window</th><th>Risk</th><th>Top reason</th></tr>';
+  const pts=[];
+  const rsize=s=>4+Math.round(s*14);
+  r.predictions.forEach(p=>{
+    const sc=p.scores?('30m:'+p.scores[30]+' 4h:'+p.scores[240]):'';
+    h+='<tr><td>'+p.atm_id+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
+    pts.push([p.lat,p.lon]);
+    L.circleMarker([p.lat,p.lon],{radius:rsize(p.score),color:color(p.risk_level),fillOpacity:0.7}).bindTooltip(
+      '<b>'+p.atm_id+'</b> ('+p.risk_level+')<br>lat: '+p.lat.toFixed(4)+', lon: '+p.lon.toFixed(4)+
+      '<br>60m score: '+p.score+'<br>window: '+(p.predicted_window||''),
+      {sticky:true}).addTo(layer);
+  });
+  document.getElementById('predOut').innerHTML=h+'</table><div style="font-size:11px;color:#94a3b8">model: '+r.model_version+'</div>';
+  if(pts.length)map.fitBounds(pts,{padding:[30,30]});
+  log('prediction done, top='+r.predictions[0].atm_id+' '+r.predictions[0].score);
+  loadAlerts();loadHotspots();
+}
+async function loadHotspots(){
+  const st=document.getElementById('f_hstate').value;
+  const rk=document.getElementById('f_hrisk').value;
+  const ms=document.getElementById('f_hscore').value||0;
+  const cat=document.getElementById('f_hcat').value;
+  const tb=document.getElementById('f_htime').value;
+  const q=new URLSearchParams();
+  if(st)q.set('state',st);
+  if(rk)q.set('risk',rk);
+  if(+ms>0)q.set('min_score',ms);
+  if(cat)q.set('category',cat);
+  if(tb)q.set('hours_back',tb);
+  const r=await api('/api/v1/risk/hotspots?'+q.toString()).then(r=>r.json());
+  layer.clearLayers();
+  const cnt={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0};
+  r.cells.forEach(c=>{
+    cnt[c.risk_level]=(cnt[c.risk_level]||0)+1;
+    try{
+      const b=h3.cellToBoundary(c.h3_cell).map(p=>[p[0],p[1]]);
+      const clat=(b.reduce((s,p)=>s+p[0],0)/b.length).toFixed(4);
+      const clon=(b.reduce((s,p)=>s+p[1],0)/b.length).toFixed(4);
+      L.polygon(b,{color:color(c.risk_level),fillOpacity:0.35,weight:1}).bindTooltip(
+        '<b>'+c.risk_level+'</b> '+c.risk_score+'<br>lat: '+clat+', lon: '+clon+'<br>'+(c.state||''),
+        {sticky:true}).bindPopup((c.state||'')+'<br>'+c.h3_cell+'<br>'+c.risk_score+' '+c.risk_level).addTo(layer);
+    }catch(e){
+      L.circleMarker([27.5,76.5],{radius:5,color:color(c.risk_level)}).addTo(layer);
+    }
+  });
+  document.getElementById('hstats').innerHTML='Cells: <b>'+r.count+'</b> — '+
+    Object.entries(cnt).filter(([k,v])=>v).map(([k,v])=>'<span class="'+k+'">'+k+': '+v+'</span>').join(' ');
+  log('hotspots: '+r.count+' cells');
+}
+async function loadAlerts(){
+  const r=await api('/api/v1/alerts').then(r=>r.json());
+  document.getElementById('alerts').innerHTML=r.slice(0,10).map(a=>
+    '#'+a.alert_id+' case '+a.case_id+' <b>'+a.severity+'</b> '+a.status+
+    ' <button style="width:auto;padding:2px 8px" onclick="ack('+a.alert_id+')">ack</button><br>'+a.message
+  ).join('')||'no alerts yet';
+}
+async function ack(id){
+  await api('/api/v1/alerts/'+id+'/acknowledge',{method:'POST'});
+  loadAlerts();
+}
+async function loadTimeline(){
+  if(!CASE_ID)return alert('Pehle case banao (step 1)');
+  const r=await api('/api/v1/cases/'+CASE_ID+'/timeline').then(r=>r.json());
+  document.getElementById('lea').innerHTML=r.events.map(e=>e.t.slice(0,16)+' <b>'+e.kind+'</b> '+e.text).join('<br>');
+}
+async function genReport(){
+  if(!CASE_ID)return alert('Pehle case banao (step 1)');
+  const r=await api('/api/v1/cases/'+CASE_ID+'/report',{method:'POST'}).then(r=>r.json());
+  document.getElementById('lea').innerHTML='<b>'+r.title+'</b><br>'+r.banner+'<br>'+r.summary+'<br>'+r.predictions.join('<br>')+'<br><i>'+r.note+'</i>';
+}
+async function loadTrail(){
+  if(!CASE_ID)return alert('Pehle case banao (step 1)');
+  const r=await api('/api/v1/cases/'+CASE_ID+'/trail').then(r=>r.json());
+  const nm=n=>{const x=r.nodes.find(v=>v.id===n);return x?(x.label||n):n;};
+  document.getElementById('lea').innerHTML='<b>Money trail (depth '+r.depth+')</b><br>'+
+    r.edges.map(e=>nm(e.from)+' ─▶ '+nm(e.to)+(e.amount?' (₹'+e.amount+')':'')+' <i>'+(e.type||'')+'</i>').join('<br>');
+}
+const es=new EventSource('/api/v1/events/stream');
+es.addEventListener('prediction.completed',e=>log('SSE prediction: '+e.data));
+es.addEventListener('alert.created',e=>{log('<b>SSE ALERT: '+e.data+'</b>');loadAlerts();});
+loadHotspots();loadAlerts();showWho();
+</script>
+</body>
+</html>

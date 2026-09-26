@@ -1,0 +1,18 @@
+name: backend-ci
+on: [push, pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install fastapi uvicorn sqlalchemy pydantic pydantic-settings python-jose httpx pytest h3 ruff
+        working-directory: backend
+      - run: ruff check app scripts || true
+        working-directory: backend
+      - run: python -m pytest tests -q
+        working-directory: backend

@@ -40,6 +40,15 @@ def startup_warmup():
     # P5: Load XGBoost at startup — avoids 1-2s init on first prediction request
     _load_model()
     log.info(f"startup: model={'loaded' if model_available() else 'heuristic-fallback'}")
+    # Demo feed: keep recent-withdrawal layer alive so history features work
+    # out of the box. Skipped under pytest and when disabled for production.
+    import os as _os
+    if settings.demo_autostage and not _os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            from scripts.stage_demo_withdrawals import run as _stage
+            _stage(count=10)
+        except Exception as e:
+            log.warning(f"demo autostage skipped: {e}")
 
 
 
@@ -288,12 +297,17 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
     scored.sort(key=lambda x: -x[0])
     top = scored[:settings.top_k]
     by_key = {(s, a.id): m for (s, a, p, r, m) in new_preds}
-    preds = [{"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
-              "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
-              "scores": by_key[(s, a.id)]["scores"],
-              "predicted_window": by_key[(s, a.id)]["predicted_window"],
-              "basis": by_key[(s, a.id)]["basis"],
-              "h3_cell": p.h3_cell, "top_reasons": r} for s, a, p, r in top]
+    margin = round(top[0][0] - top[1][0], 3) if len(top) > 1 else 0.0
+    preds = []
+    for i, (s, a, p, r) in enumerate(top):
+        m = by_key[(s, a.id)]
+        preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
+                      "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
+                      "scores": m["scores"],
+                      "predicted_window": m["predicted_window"],
+                      "basis": m["basis"],
+                      "best_bet": i == 0,
+                      "h3_cell": p.h3_cell, "top_reasons": r})
     n_hist = sum(1 for (s, a, p, r, m) in new_preds if m["basis"] == "history+geo")
     basis_note = (f"{n_hist}/{len(new_preds)} candidates have prior cash-out track; "
                   "rest ranked on geography + case profile."
@@ -317,7 +331,10 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
                                     "top_score": top[0][0] if top else 0}})
     return {"case_id": c.external_case_id, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "horizon_minutes": body.horizon_minutes, "model_version": label,
-            "basis_note": basis_note, "predictions": preds}
+            "basis_note": basis_note,
+            "ranking_note": (f"Best bet {top[0][1].atm_code} leads runner-up by {margin} "
+                             f"among {len(scored)} candidates." if top else "No candidates."),
+            "predictions": preds}
 
 @app.get("/api/v1/risk/hotspots")
 def hotspots(state: str | None = None, risk: str | None = None,

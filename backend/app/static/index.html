@@ -186,12 +186,12 @@ async function predict(){
   const r=await api('/api/v1/cases/'+CASE_ID+'/predictions',{method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({horizon_minutes:60,ref_lat:+rla,ref_lon:+rlo})}).then(r=>r.json());
-  let h='<div style="font-size:11px;color:#fbbf24;margin-bottom:4px">'+(r.basis_note||'')+'</div><table><tr><th>ATM</th><th>60m</th><th>Window</th><th>Risk</th><th>Top reason</th></tr>';
+  let h='<div style="font-size:11px;color:#fbbf24;margin-bottom:4px">'+(r.basis_note||'')+'<br>'+(r.ranking_note||'')+'</div><table><tr><th>ATM</th><th>60m</th><th>Window</th><th>Risk</th><th>Top reason</th></tr>';
   const pts=[];
   const rsize=s=>4+Math.round(s*14);
   r.predictions.forEach(p=>{
     const sc=p.scores?('30m:'+p.scores[30]+' 4h:'+p.scores[240]):'';
-    h+='<tr><td>'+p.atm_id+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
+    h+='<tr'+(p.best_bet?' style="background:#1e3a5f"':'')+'><td><b>'+p.atm_id+'</b>'+(p.best_bet?' ⭐':'')+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
     pts.push([p.lat,p.lon]);
     L.circleMarker([p.lat,p.lon],{radius:rsize(p.score),color:color(p.risk_level),fillOpacity:0.7}).bindTooltip(
       '<b>'+p.atm_id+'</b> ('+p.risk_level+')<br>lat: '+p.lat.toFixed(4)+', lon: '+p.lon.toFixed(4)+

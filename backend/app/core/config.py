@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     sms_api_key: str = ""
     # Auth: false = open demo mode; true = require Bearer JWT (RBAC).
     auth_enabled: bool = False
+    # Demo feed: on startup, ensure a thin layer of recent (synthetic)
+    # withdrawals exists so history features are alive for demos.
+    # Production with live bank feeds sets this false.
+    demo_autostage: bool = True
     model_path: str = "app/ml/models/cashout_xgb.json"
     redis_url: str = ""
 

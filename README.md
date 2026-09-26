@@ -3,9 +3,6 @@
 > Hackathon build: AI/ML framework that analyses cybercrime + financial
 > signals to **forecast likely cash-withdrawal locations** of financial
 > fraud — including cross-state trails (Delhi victim → Rajasthan cash-out).
->
-> Demo note: all data shown is self-generated synthetic (no real citizen
-> data); production plugs into authorised CFCFRMS/bank feeds.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 *Temp dashboard: case → top-5 predictions with time windows → H3 heatmap.*

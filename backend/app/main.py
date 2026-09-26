@@ -441,7 +441,7 @@ def report(case_id: int, db: Session = Depends(get_db)):
                      f"score={p.prediction_score} risk={p.risk_level} cell={p.h3_cell}")
     n_tx = db.query(Transaction).filter(Transaction.case_id == case_id).count()
     return {
-        "case_id": case_id, "banner": "DRAFT — DEMO / SYNTHETIC DATA",
+        "case_id": case_id, "banner": "DRAFT",
         "title": f"Cash-out intelligence — {c.external_case_id}",
         "summary": (f"{c.crime_subcategory} fraud of ₹{c.fraud_amount}; victim context "
                     f"{c.complainant_state}; incident {c.incident_state}; "

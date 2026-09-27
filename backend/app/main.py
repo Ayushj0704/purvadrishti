@@ -272,6 +272,16 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
     cached = _ATM_CACHE if _ATM_CACHE else None
     cands = generate_candidates(db, c, body.ref_lat, body.ref_lon, atm_cache=cached)
     multi = score_multi(db, c, cands, body.ref_lat, body.ref_lon)
+    # Burst heat (unsupervised, observed counts — spec §16 second signal)
+    from datetime import datetime as _dtm
+    from app.ml.burst import burst_levels
+    heat = burst_levels(db, [a.id for a in cands], _dtm.utcnow())
+    for a, m in zip(cands, multi):
+        h = heat.get(a.id, {"n2h": 0, "n6h": 0, "level": "LOW"})
+        if h["level"] != "LOW":
+            m["basis"] = f"burst-heat ({h['level']}, {h['n2h']} in 2h)"
+            m["reasons"] = [f"Burst: {h['n2h']} withdrawals in last 2 hours "
+                            f"at this ATM (observed)"] + m["reasons"][:3]
     label = model_label() if model_available() else "heuristic-fallback"
     HIGH_T, CRIT_T = get_thresholds(60) if model_available() else (0.70, 0.85)
     scored = []
@@ -301,25 +311,48 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
     preds = []
     for i, (s, a, p, r) in enumerate(top):
         m = by_key[(s, a.id)]
+        h = heat.get(a.id, {"n2h": 0, "n6h": 0, "level": "LOW"})
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
                       "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
                       "basis": m["basis"],
+                      "heat": h,
                       "best_bet": i == 0,
                       "h3_cell": p.h3_cell, "top_reasons": r})
-    n_hist = sum(1 for (s, a, p, r, m) in new_preds if m["basis"] == "history+geo")
-    basis_note = (f"{n_hist}/{len(new_preds)} candidates have prior cash-out track; "
+    n_hot = sum(1 for (s, a, p, r, m) in new_preds
+                if heat.get(a.id, {}).get("level", "LOW") != "LOW")
+    basis_note = (f"{n_hot}/{len(new_preds)} candidates show recent burst activity; "
                   "rest ranked on geography + case profile."
-                  if n_hist < len(new_preds) else
-                  "All top candidates backed by prior cash-out track + geography.")
-    # Alert on HIGH+ — multi-channel fan-out (PS deliverable d)
+                  if n_hot < len(new_preds) else
+                  "All top candidates show recent burst activity + geography.")
+    # Heat watch: bursting ATMs anywhere among candidates (independent of
+    # case-rank — patrol needs to know even if the case model ranks it #20).
+    heat_watch = []
+    for (s, a, p, r) in scored:
+        h = heat.get(a.id, {})
+        if h.get("level") == "HIGH":
+            heat_watch.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
+                               "score": s, "n2h": h.get("n2h", 0),
+                               "n6h": h.get("n6h", 0), "h3_cell": p.h3_cell})
+    heat_watch.sort(key=lambda x: (-x["n2h"], -x["score"]))
+    # Alert on HIGH case-score OR HIGH burst heat (either signal fires)
+    fire = None
     if top and top[0][0] >= HIGH_T:
-        s, a, p, r = top[0]
+        fire = (top[0], "model")
+    if not fire and heat_watch:
+        w0 = heat_watch[0]
+        match = next(((s, a, p, r) for (s, a, p, r) in scored
+                      if a.atm_code == w0["atm_id"]), None)
+        if match:
+            fire = (match, "burst")
+    if fire:
+        (s, a, p, r), why = fire
         al = Alert(case_id=c.id, prediction_id=p.id,
-                   severity="CRITICAL" if s >= CRIT_T else "HIGH",
+                   severity="CRITICAL" if (s >= CRIT_T or why == "burst") else "HIGH",
                    channel=settings.alert_channels,
-                   message=f"Predicted cash-out {a.atm_code} score={s}")
+                   message=f"Predicted cash-out {a.atm_code} score={s} via={why} "
+                           f"heat={heat.get(a.id, {}).get('level')}")
         db.add(al); db.commit(); db.refresh(al)
         from app.notifications.providers import fan_out
         window = by_key[(s, a.id)]["predicted_window"]
@@ -334,6 +367,7 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
             "basis_note": basis_note,
             "ranking_note": (f"Best bet {top[0][1].atm_code} leads runner-up by {margin} "
                              f"among {len(scored)} candidates." if top else "No candidates."),
+            "heat_watch": heat_watch,
             "predictions": preds}
 
 @app.get("/api/v1/risk/hotspots")

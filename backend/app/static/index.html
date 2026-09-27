@@ -133,7 +133,7 @@ a{color:#93c5fd}
 <div style="font-size:12px;margin-bottom:6px">
 <span style="color:#ef4444">■</span> CRITICAL <span style="color:#f97316">■</span> HIGH
 <span style="color:#eab308">■</span> MEDIUM <span style="color:#64748b">■</span> LOW
-<span style="color:#94a3b8">— hexagons = H3 risk cells, circles = predicted ATMs</span>
+<span style="color:#94a3b8">— hexagons = history heat cells, <b>numbered badges 1–5 = predicted rank order</b></span>
 </div>
 <div id="map" style="margin-top:8px"></div>
 </div>
@@ -189,16 +189,21 @@ async function predict(){
   let h='<div style="font-size:11px;color:#fbbf24;margin-bottom:4px">'+(r.basis_note||'')+'<br>'+(r.ranking_note||'')+'</div><table><tr><th>ATM</th><th>60m</th><th>Window</th><th>Risk</th><th>Top reason</th></tr>';
   const pts=[];
   const rsize=s=>4+Math.round(s*14);
-  r.predictions.forEach(p=>{
+  r.predictions.forEach((p,idx)=>{
     const sc=p.scores?('30m:'+p.scores[30]+' 4h:'+p.scores[240]):'';
-    h+='<tr'+(p.best_bet?' style="background:#1e3a5f"':'')+'><td><b>'+p.atm_id+'</b>'+(p.best_bet?' ⭐':'')+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
+    const rank=idx+1;
+    h+='<tr'+(p.best_bet?' style="background:#1e3a5f"':'')+'><td><b>#'+rank+' '+p.atm_id+'</b>'+(p.best_bet?' ⭐':'')+(p.heat&&p.heat.level!=='LOW'?' 🔥'+p.heat.level:'')+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
     pts.push([p.lat,p.lon]);
-    L.circleMarker([p.lat,p.lon],{radius:rsize(p.score),color:color(p.risk_level),fillOpacity:0.7}).bindTooltip(
-      '<b>'+p.atm_id+'</b> ('+p.risk_level+')<br>lat: '+p.lat.toFixed(4)+', lon: '+p.lon.toFixed(4)+
+    const col=color(p.risk_level);
+    const icon=L.divIcon({className:'',html:'<div style="background:'+col+';color:#000;font-weight:bold;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;border:2px solid #fff">'+rank+'</div>',iconSize:[24,24]});
+    L.marker([p.lat,p.lon],{icon:icon}).bindTooltip(
+      '<b>#'+rank+' '+p.atm_id+'</b> ('+p.risk_level+')<br>lat: '+p.lat.toFixed(4)+', lon: '+p.lon.toFixed(4)+
       '<br>60m score: '+p.score+'<br>window: '+(p.predicted_window||''),
       {sticky:true}).addTo(layer);
   });
-  document.getElementById('predOut').innerHTML=h+'</table><div style="font-size:11px;color:#94a3b8">model: '+r.model_version+'</div>';
+  document.getElementById('predOut').innerHTML=h+'</table><div style="font-size:11px;color:#94a3b8">model: '+r.model_version+'</div>'+
+    ((r.heat_watch&&r.heat_watch.length)?'<div style="margin-top:6px;padding:6px;background:#431407;border-radius:4px">🔥 <b>HEAT WATCH</b> (burst right now, any rank):<br>'+
+      r.heat_watch.map(w=>'<b>'+w.atm_id+'</b> '+w.n2h+' in 2h <button style="width:auto;padding:2px 8px" onclick="map.panTo(['+w.lat+','+w.lon+'])">show</button>').join('<br>')+'</div>':'');
   if(pts.length)map.fitBounds(pts,{padding:[30,30]});
   log('prediction done, top='+r.predictions[0].atm_id+' '+r.predictions[0].score);
   loadAlerts();loadHotspots();

@@ -11,12 +11,9 @@ _ENABLE_SHAP = os.environ.get("ENABLE_SHAP", "0") == "1"
 _GAIN_CACHE: dict = {}
 
 REASONS = {
-    "fraud_withdrawals_30d": "High historical cash-out activity at this location",
-    "fraud_withdrawals_7d": "Elevated recent suspicious activity here",
     "distance_ref_to_candidate_m": "Candidate is close to recent relevant transaction activity",
     "hour_match_score": "Current time matches historical withdrawal pattern",
     "cross_state_flag": "Cross-state money-flow pattern detected",
-    "avg_withdrawal_amount": "Withdrawal amounts match fraud profile",
     "dst_recent_tx_count": "Destination account shows elevated activity",
     "src_recent_tx_count": "Source account shows elevated activity",
     "nearby_atm_count": "Dense ATM cluster favoured for cash-outs",
@@ -71,11 +68,10 @@ def top_reasons(booster, X_row, feature_dict, k=4):
         vals = np.array([w[f] * (0.2 + mag[i]) for i, f in enumerate(FEATURES)])
     order = np.argsort(-vals)
 
-    # Q3 FIX: gate each reason on actual feature value so display is honest
+    # Q3 FIX: gate each reason on actual feature value so display is honest.
+    # (History gates removed with v0.4.0 — those features are gone; burst
+    # heat is reported separately from observed counts, never learned.)
     VALUE_GATES = {
-        "fraud_withdrawals_30d":        lambda v: v > 0,
-        "fraud_withdrawals_7d":         lambda v: v > 0,
-        "avg_withdrawal_amount":        lambda v: v > 0,
         "dst_recent_tx_count":          lambda v: v > 0,
         "src_recent_tx_count":          lambda v: v > 0,
         "cross_state_flag":             lambda v: v == 1,

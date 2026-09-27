@@ -25,9 +25,32 @@ from app.db.models import ATM, Withdrawal
 
 Base.metadata.create_all(bind=engine)
 
-def run(count: int = 10, dry_run: bool = False):
+def run(count: int = 10, dry_run: bool = False, focus: str | None = None):
+    from app.geo.spatial import haversine_m
     db = SessionLocal(expire_on_commit=False)
     now = datetime.utcnow()
+    if focus:
+        # Demo recipe: concentrate fresh rows at the hot ATM nearest to
+        # LAT,LON so a prediction at that ref point fires HIGH honestly.
+        flat, flon = (float(x) for x in focus.split(","))
+        atms = db.query(ATM).filter(ATM.is_active == 1).all()
+        hot = [a for a in atms if (db.query(Withdrawal).filter(
+            Withdrawal.atm_id == a.id).count() > 0)]
+        pool = hot or atms
+        a = min(pool, key=lambda t: haversine_m(flat, flon, t.lat, t.lon))
+        added = []
+        for i in range(count):
+            added.append(Withdrawal(
+                atm_id=a.id, amount=random.uniform(10000, 40000),
+                timestamp=now - timedelta(minutes=10 + i * 12),
+                withdrawal_type="CASH"))
+        if not dry_run:
+            db.add_all(added)
+            db.commit()
+        print(f"[stage_demo] Focused {len(added)} rows at {a.atm_code} "
+              f"({a.state}) for ref {flat},{flon}.")
+        db.close()
+        return
     window_start = now - timedelta(hours=24)
 
     # Check how many recent withdrawals already exist
@@ -38,16 +61,20 @@ def run(count: int = 10, dry_run: bool = False):
         db.close()
         return
 
-    # Find the ATMs with the most historical withdrawals (hot ATMs)
+    # Find the top-2 historical ATMs PER STATE (not global top) so that
+    # EVERY ref region has nearby fresh history — otherwise candidates near
+    # the user's ref point show 0/32 track and scores stay flat LOW.
     from sqlalchemy import func
-    top_atm_ids = [
-        row[0] for row in
-        db.query(Withdrawal.atm_id, func.count(Withdrawal.id).label("cnt"))
-          .group_by(Withdrawal.atm_id)
-          .order_by(func.count(Withdrawal.id).desc())
-          .limit(20)
-          .all()
-    ]
+    per_state: dict = {}
+    for atm_id, st, cnt in db.query(
+            Withdrawal.atm_id, ATM.state, func.count(Withdrawal.id)).join(
+            ATM, Withdrawal.atm_id == ATM.id).group_by(
+            Withdrawal.atm_id, ATM.state).order_by(
+            func.count(Withdrawal.id).desc()).all():
+        per_state.setdefault(st, []).append(atm_id)
+    top_atm_ids = []
+    for st, ids in per_state.items():
+        top_atm_ids.extend(ids[:2])
     if not top_atm_ids:
         # fallback: any active ATMs
         top_atm_ids = [a.id for a in db.query(ATM).filter(ATM.is_active == 1).limit(20).all()]
@@ -59,8 +86,11 @@ def run(count: int = 10, dry_run: bool = False):
 
     to_add = count - existing
     added = []
-    for _ in range(to_add):
-        atm_id = random.choice(top_atm_ids)
+    # Round-robin across states (not random.choice) so EVERY state gets
+    # coverage — random draws can miss a state entirely (e.g. Rajasthan).
+    random.shuffle(top_atm_ids)
+    for i in range(to_add):
+        atm_id = top_atm_ids[i % len(top_atm_ids)]
         # Stagger timestamps across the last 24h, biased toward the last 2h
         hrs_ago = random.choice([0.5, 1, 1.5, 2, 4, 6, 12, 18, 20, 23])
         ts = now - timedelta(hours=hrs_ago)
@@ -92,5 +122,7 @@ if __name__ == "__main__":
                         help="Total recent withdrawals to ensure exist (default: 10)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print what would happen without inserting")
+    parser.add_argument("--focus", default=None,
+                        help="LAT,LON to concentrate rows at nearest hot ATM (demo HIGH recipe)")
     args = parser.parse_args()
-    run(count=args.count, dry_run=args.dry_run)
+    run(count=args.count, dry_run=args.dry_run, focus=args.focus)

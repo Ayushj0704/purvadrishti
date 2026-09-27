@@ -1,8 +1,8 @@
 {
   "model_name": "cashout_xgb",
-  "model_version": "0.3.0",
+  "model_version": "0.4.0",
   "feature_version": "0.1.0",
-  "trained_at": "2026-09-26T20:38:41.425491Z",
+  "trained_at": "2026-09-27T03:18:34.560905Z",
   "features": [
     "transaction_amount",
     "time_since_complaint_min",
@@ -13,9 +13,6 @@
     "distance_ref_to_candidate_m",
     "cross_state_flag",
     "nearby_atm_count",
-    "fraud_withdrawals_7d",
-    "fraud_withdrawals_30d",
-    "avg_withdrawal_amount",
     "hour_match_score",
     "src_recent_tx_count",
     "dst_recent_tx_count",
@@ -33,64 +30,64 @@
     "30": {
       "minutes": 30,
       "positives": 355,
-      "val_pr_auc": 0.027461767915650945,
-      "test_pr_auc": 0.020873218587462296,
-      "test_roc_auc": 0.7962537842238858,
-      "test_top5_recall": 0.5084745762711864,
-      "test_top1_recall": 0.0847457627118644,
+      "val_pr_auc": 0.012976590558563489,
+      "test_pr_auc": 0.01600030914226543,
+      "test_roc_auc": 0.7504655791541053,
+      "test_top5_recall": 0.3898305084745763,
+      "test_top1_recall": 0.11864406779661017,
       "thresholds": {
-        "HIGH": 0.296,
-        "CRITICAL": 0.623
+        "HIGH": 0.396,
+        "CRITICAL": 0.667
       }
     },
     "60": {
       "minutes": 60,
       "positives": 772,
-      "val_pr_auc": 0.06260304999215249,
-      "test_pr_auc": 0.04754099049654622,
-      "test_roc_auc": 0.793801648729566,
-      "test_top5_recall": 0.5447154471544715,
-      "test_top1_recall": 0.12195121951219512,
+      "val_pr_auc": 0.052858224110320415,
+      "test_pr_auc": 0.0326716042087177,
+      "test_roc_auc": 0.7388993943706921,
+      "test_top5_recall": 0.4016393442622951,
+      "test_top1_recall": 0.13934426229508196,
       "thresholds": {
-        "HIGH": 0.594,
-        "CRITICAL": 0.797
+        "HIGH": 0.629,
+        "CRITICAL": 0.788
       }
     },
     "240": {
       "minutes": 240,
       "positives": 1138,
-      "val_pr_auc": 0.06641633990917718,
-      "test_pr_auc": 0.07021166095336594,
-      "test_roc_auc": 0.8156275273073383,
-      "test_top5_recall": 0.6081871345029239,
-      "test_top1_recall": 0.13450292397660818,
+      "val_pr_auc": 0.04310407008754615,
+      "test_pr_auc": 0.04680797812539011,
+      "test_roc_auc": 0.7551413924769188,
+      "test_top5_recall": 0.43452380952380953,
+      "test_top1_recall": 0.11904761904761904,
       "thresholds": {
-        "HIGH": 0.694,
-        "CRITICAL": 0.841
+        "HIGH": 0.679,
+        "CRITICAL": 0.816
       }
     },
     "720": {
       "minutes": 720,
       "positives": 1150,
-      "val_pr_auc": 0.06482614330584793,
-      "test_pr_auc": 0.07242219015170896,
-      "test_roc_auc": 0.8167880212010412,
-      "test_top5_recall": 0.6337209302325582,
-      "test_top1_recall": 0.14534883720930233,
+      "val_pr_auc": 0.040932226257712576,
+      "test_pr_auc": 0.048443869078848574,
+      "test_roc_auc": 0.7590785575999666,
+      "test_top5_recall": 0.44970414201183434,
+      "test_top1_recall": 0.09467455621301775,
       "thresholds": {
-        "HIGH": 0.695,
-        "CRITICAL": 0.843
+        "HIGH": 0.7,
+        "CRITICAL": 0.825
       }
     }
   },
   "horizon_minutes": 60,
   "thresholds": {
-    "HIGH": 0.594,
-    "CRITICAL": 0.797
+    "HIGH": 0.629,
+    "CRITICAL": 0.788
   },
-  "val_pr_auc": 0.06260304999215249,
-  "test_pr_auc": 0.04754099049654622,
-  "test_roc_auc": 0.793801648729566,
-  "test_top5_recall": 0.5447154471544715,
-  "test_top1_recall": 0.12195121951219512
+  "val_pr_auc": 0.052858224110320415,
+  "test_pr_auc": 0.0326716042087177,
+  "test_roc_auc": 0.7388993943706921,
+  "test_top5_recall": 0.4016393442622951,
+  "test_top1_recall": 0.13934426229508196
 }

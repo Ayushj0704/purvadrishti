@@ -129,10 +129,10 @@ def score_multi(db, case, cands, ref_lat=None, ref_lon=None):
                 if scores[h] >= hi:
                     window = WINDOW_LABELS[h]
                     break
-        hist = f.get("fraud_withdrawals_7d", 0) + f.get("fraud_withdrawals_30d", 0)
+        # basis is refined by the endpoint with live burst heat; default here:
         out.append({"scores": scores,
                     "reasons": top_reasons(b60, np.array([f[k] for k in FEATURES]), f),
                     "label": model_label(),
                     "predicted_window": window,
-                    "basis": "history+geo" if hist > 0 else "geo-only (no prior track)"})
+                    "basis": "geo-only (no prior track)"})
     return out

@@ -5,15 +5,19 @@ RULE: every feature uses only data with timestamp <= T (no leakage, §33).
 from datetime import timedelta
 from app.geo.spatial import haversine_m
 
-FEATURE_VERSION = "0.2.0"
+FEATURE_VERSION = "0.3.0"
 
+# NOTE (v0.4.0 model): fraud_withdrawals_7d/30d + avg_withdrawal_amount were
+# REMOVED — the model learned them backwards (hot ATMs appear as negatives
+# in hundreds of cases, so high history scored LOWER; proven by ablation:
+# zeroing history raised scores 8x). Burst detection (app/ml/burst.py)
+# covers live heat honestly instead, with no learned weights.
 FEATURES = [
     "transaction_amount", "time_since_complaint_min",
     "hour", "day_of_week", "is_weekend",
     "distance_victim_to_candidate_m", "distance_ref_to_candidate_m",
     "cross_state_flag", "nearby_atm_count",
-    "fraud_withdrawals_7d", "fraud_withdrawals_30d",
-    "avg_withdrawal_amount", "hour_match_score",
+    "hour_match_score",
     "src_recent_tx_count", "dst_recent_tx_count",
     "suspect_info_count",
     # Phase-2: velocity anomaly + money-trail graph (NetworkX-style, no GNN infra)
@@ -56,75 +60,8 @@ def graph_feats(txns, case, T):
     return float(len(feeders)), float(len(outs)), float(depth), float(l2n)
 
 
-def build_features(db, case, atm, ref_lat=None, ref_lon=None, now=None):
-    """Return (feature_dict, debug). `now` = prediction time T."""
-    from app.db.models import ATM, Withdrawal, Account
-    from datetime import datetime
-    T = now or datetime.utcnow()
-    inc_dt = case.transaction_datetime or case.reported_at or T
-
-    vlat, vlon = case.victim_lat or 28.6, case.victim_lon or 77.2
-    plat = ref_lat if ref_lat is not None else vlat
-    plon = ref_lon if ref_lon is not None else vlon
-
-    d_victim = haversine_m(vlat, vlon, atm.lat, atm.lon)
-    d_ref = haversine_m(plat, plon, atm.lat, atm.lon)
-    cross = 1 if (case.complainant_state and atm.state
-                  and case.complainant_state != atm.state) else 0
-
-    # P2 FIX: read precomputed nearby_atm_count (set at seed time) — avoids 500-ATM haversine loop per request
-    nearby = getattr(atm, "nearby_atm_count", 0) or 0
-
-    # Candidate-location history, strictly <= T
-    w7 = w30 = 0
-    amounts = []
-    for (ts, amt) in db.query(Withdrawal.timestamp, Withdrawal.amount).filter(
-            Withdrawal.atm_id == atm.id, Withdrawal.timestamp <= T).all():
-        amounts.append(amt)
-        if ts and (T - ts) <= timedelta(days=7):
-            w7 += 1
-        if ts and (T - ts) <= timedelta(days=30):
-            w30 += 1
-    avg_amt = sum(amounts) / len(amounts) if amounts else 0.0
-
-    # Network: recent-tx counts for masked source/dest accounts
-    src_n = dst_n = 0
-    if case.debited_account_ref:
-        r = db.query(Account.recent_tx_count).filter(
-            Account.masked_account_ref.like(f"{case.debited_account_ref}%")).first()
-        src_n = r[0] if r else 0
-    if case.destination_account_ref:
-        r = db.query(Account.recent_tx_count).filter(
-            Account.masked_account_ref.like(f"{case.destination_account_ref}%")).first()
-        dst_n = r[0] if r else 0
-
-    suspect_n = sum(1 for v in (case.suspect_mobile, case.suspect_email,
-                                case.suspect_account_ref, case.suspect_url) if v)
-    dt_min = max(0.0, (T - (case.reported_at or T)).total_seconds() / 60.0)
-
-    f = {
-        "transaction_amount": float(case.fraud_amount or 0),
-        "time_since_complaint_min": float(dt_min),
-        "hour": float(T.hour), "day_of_week": float(T.weekday()),
-        "is_weekend": float(T.weekday() >= 5),
-        "distance_victim_to_candidate_m": float(d_victim),
-        "distance_ref_to_candidate_m": float(d_ref),
-        "cross_state_flag": float(cross),
-        "nearby_atm_count": float(nearby),
-        "fraud_withdrawals_7d": float(w7),
-        "fraud_withdrawals_30d": float(w30),
-        "avg_withdrawal_amount": float(avg_amt),
-        "hour_match_score": float(_hour_match(T.hour)),
-        "src_recent_tx_count": float(src_n),
-        "dst_recent_tx_count": float(dst_n),
-        "suspect_info_count": float(suspect_n),
-    }
-    return f, {"T": T.isoformat(), "dist_ref_m": round(d_ref)}
-
-
 def build_features_batch(db, case, atms, ref_lat=None, ref_lon=None, now=None):
-    """Few-query batch version: ~3 DB round-trips total, rest in-memory.
-    Returns list[(atm, feature_dict)]. Same values as build_features()."""
+    """Few-query batch version. Returns list[(atm, feature_dict)]."""
     from app.db.models import Withdrawal, Account, Transaction
     from sqlalchemy import or_ as _or
     from datetime import datetime
@@ -134,13 +71,6 @@ def build_features_batch(db, case, atms, ref_lat=None, ref_lon=None, now=None):
     plon = ref_lon if ref_lon is not None else vlon
 
     coords = [(a.lat, a.lon) for a in atms]
-    ids = [a.id for a in atms]
-    hist = {}
-    if ids:
-        for aid, ts, amt in db.query(Withdrawal.atm_id, Withdrawal.timestamp,
-                                     Withdrawal.amount).filter(
-                Withdrawal.atm_id.in_(ids), Withdrawal.timestamp <= T).all():
-            hist.setdefault(aid, []).append((ts, amt))
     src_n = dst_n = 0
     refs = [r for r in (case.debited_account_ref, case.destination_account_ref) if r]
     if refs:
@@ -181,14 +111,6 @@ def build_features_batch(db, case, atms, ref_lat=None, ref_lon=None, now=None):
                       and case.complainant_state != a.state) else 0
         # P2 FIX: read precomputed nearby_atm_count — avoids O(n²) haversine loop
         nearby = getattr(a, "nearby_atm_count", 0) or 0
-        w7 = w30 = 0
-        recs = hist.get(a.id, [])
-        amounts = [amt for (ts, amt) in recs]
-        for (ts, amt) in recs:
-            if ts and (T - ts) <= timedelta(days=7):
-                w7 += 1
-            if ts and (T - ts) <= timedelta(days=30):
-                w30 += 1
         f = {
             "transaction_amount": float(case.fraud_amount or 0),
             "time_since_complaint_min": float(dt_min),
@@ -198,9 +120,6 @@ def build_features_batch(db, case, atms, ref_lat=None, ref_lon=None, now=None):
             "distance_ref_to_candidate_m": float(d_ref),
             "cross_state_flag": float(cross),
             "nearby_atm_count": float(nearby),
-            "fraud_withdrawals_7d": float(w7),
-            "fraud_withdrawals_30d": float(w30),
-            "avg_withdrawal_amount": float(sum(amounts) / len(amounts)) if amounts else 0.0,
             "hour_match_score": float(_hour_match(T.hour)),
             "src_recent_tx_count": float(src_n),
             "dst_recent_tx_count": float(dst_n),

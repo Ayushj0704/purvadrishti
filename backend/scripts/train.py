@@ -17,7 +17,7 @@ from app.geo.spatial import haversine_m
 
 MODEL_DIR = Path(__file__).parent.parent / "app" / "ml" / "models"
 MODEL_NAME = "cashout_xgb"
-MODEL_VERSION = "0.3.0"
+MODEL_VERSION = "0.4.0"
 HORIZONS = [30, 60, 240, 720]
 
 
@@ -50,7 +50,7 @@ def acct_lookup(accts, ref):
     return 0
 
 
-def feat_row(c, alat, alon, astate, nearby, hist, src_n, dst_n, T,
+def feat_row(c, alat, alon, astate, nearby, src_n, dst_n, T,
              plat, plon, trail):
     vlat, vlon = c.victim_lat or 28.6, c.victim_lon or 77.2
     f = [0.0] * len(FEATURES)
@@ -66,8 +66,6 @@ def feat_row(c, alat, alon, astate, nearby, hist, src_n, dst_n, T,
         "cross_state_flag": float(1 if (c.complainant_state and astate
                                         and c.complainant_state != astate) else 0),
         "nearby_atm_count": float(nearby),
-        "fraud_withdrawals_7d": 0.0, "fraud_withdrawals_30d": 0.0,
-        "avg_withdrawal_amount": 0.0,
         "hour_match_score": float(_hour_match(T.hour)),
         "src_recent_tx_count": float(src_n), "dst_recent_tx_count": float(dst_n),
         "suspect_info_count": float(sum(1 for v in (c.suspect_mobile, c.suspect_email,
@@ -77,17 +75,6 @@ def feat_row(c, alat, alon, astate, nearby, hist, src_n, dst_n, T,
         "dst_in_degree": float(indeg), "src_fan_out": float(fanout),
         "chain_depth": float(depth), "l2_count": float(l2n),
     }
-    w7 = w30 = 0
-    amts = []
-    for (ts, amt) in hist:
-        amts.append(amt)
-        if ts and (T - ts) <= timedelta(days=7):
-            w7 += 1
-        if ts and (T - ts) <= timedelta(days=30):
-            w30 += 1
-    m["fraud_withdrawals_7d"] = float(w7)
-    m["fraud_withdrawals_30d"] = float(w30)
-    m["avg_withdrawal_amount"] = float(sum(amts) / len(amts)) if amts else 0.0
     return [m[k] for k in FEATURES]
 
 
@@ -122,9 +109,7 @@ def build_rows(cases, atms, wds, first_geo, accts, trail_all):
             nearby = sum(1 for (_, la, lo, _) in coords
                          if abs(la - alat) < 0.15 and abs(lo - alon) < 0.15
                          and haversine_m(alat, alon, la, lo) <= 5000)
-            hist = [(ts, amt) for (ts, amt) in wd_by_atm.get(aid, [])
-                    if ts and ts <= T]
-            row = feat_row(c, alat, alon, astate, nearby, hist, src_n, dst_n, T,
+            row = feat_row(c, alat, alon, astate, nearby, src_n, dst_n, T,
                            plat, plon, trail)
             row[FEATURES.index("distance_ref_to_candidate_m")] = float(
                 haversine_m(plat, plon, alat, alon))

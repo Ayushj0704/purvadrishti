@@ -10,7 +10,7 @@ const VARIANTS: Record<Variant, string> = {
     "bg-accent-strong text-white border-accent-strong hover:bg-accent-hover hover:border-accent-hover",
   outline: "bg-transparent text-ink border-hairline hover:border-[#2e2e3a] hover:bg-white/[0.03]",
   ghost: "bg-transparent text-muted border-transparent hover:text-ink hover:bg-white/[0.04]",
-  danger: "bg-critical/10 text-critical border-critical/40 hover:bg-critical/20",
+  danger: "bg-critical/20 text-critical border-critical/55 hover:bg-critical/30",
 };
 
 const SIZES: Record<Size, string> = {

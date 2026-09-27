@@ -5,26 +5,26 @@ export type RiskLevel = "HIGH" | "MEDIUM" | "LOW" | "CRITICAL";
 const TONE: Record<RiskLevel, { text: string; border: string; bg: string; bar: string }> = {
   CRITICAL: {
     text: "text-critical",
-    border: "border-critical/40",
-    bg: "bg-critical/10",
+    border: "border-critical/55",
+    bg: "bg-critical/20",
     bar: "bg-critical",
   },
   HIGH: {
     text: "text-critical",
-    border: "border-critical/30",
-    bg: "bg-critical/[0.07]",
+    border: "border-critical/45",
+    bg: "bg-critical/15",
     bar: "bg-critical",
   },
   MEDIUM: {
     text: "text-elevated-risk",
-    border: "border-elevated-risk/30",
-    bg: "bg-elevated-risk/[0.07]",
+    border: "border-elevated-risk/45",
+    bg: "bg-elevated-risk/15",
     bar: "bg-elevated-risk",
   },
   LOW: {
     text: "text-stable",
-    border: "border-stable/30",
-    bg: "bg-stable/[0.07]",
+    border: "border-stable/45",
+    bg: "bg-stable/15",
     bar: "bg-stable",
   },
 };

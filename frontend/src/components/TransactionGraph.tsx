@@ -86,7 +86,7 @@ export function TransactionGraph() {
         >
           <Controls
             showInteractive={false}
-            className="!overflow-hidden !rounded-lg !border !border-hairline !bg-void !shadow-none [&>button]:!border-hairline [&>button]:!bg-void [&>button]:!fill-muted [&>button:hover]:!bg-elevated"
+            className="!overflow-hidden !rounded-lg !border !border-hairline !bg-surface !shadow-none [&>button]:!border-hairline [&>button]:!bg-surface [&>button]:!fill-muted [&>button:hover]:!bg-elevated"
           />
           <MiniMap
             pannable
@@ -97,7 +97,7 @@ export function TransactionGraph() {
               return "#3a3a46";
             }}
             maskColor="rgba(8, 8, 10, 0.75)"
-            className="!border !border-hairline !bg-void"
+            className="!border !border-hairline !bg-surface"
             style={{ borderRadius: 12 }}
           />
           <Background color="#1c1c24" gap={22} size={1} />

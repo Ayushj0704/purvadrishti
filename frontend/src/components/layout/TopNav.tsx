@@ -16,7 +16,7 @@ export function TopNav() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-hairline bg-void/80 backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-50 bg-transparent backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[110rem] items-center justify-between gap-8 px-5 sm:px-8">
         <NavLink to="/" className="group flex items-center gap-3 text-accent">
           <Wordmark />
@@ -73,7 +73,10 @@ export function TopNav() {
         </div>
       </div>
 
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-hairline-soft px-5 md:hidden">
+      <nav
+        data-lenis-prevent
+        className="flex items-center gap-1 overflow-x-auto border-t border-transparent px-5 md:hidden"
+      >
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}

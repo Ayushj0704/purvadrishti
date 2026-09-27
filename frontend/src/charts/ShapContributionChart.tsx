@@ -19,7 +19,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   const positive = d.contribution > 0;
 
   return (
-    <div className="max-w-[18rem] rounded-lg border border-hairline bg-void/95 p-3.5 backdrop-blur">
+    <div className="max-w-[18rem] rounded-lg border border-hairline bg-surface/95 p-3.5 backdrop-blur">
       <p className="text-[0.8125rem] font-medium tracking-[-0.01em] text-ink">{d.feature_name}</p>
       <p className="mt-1.5 text-xs leading-relaxed text-faint">{d.description}</p>
       <p

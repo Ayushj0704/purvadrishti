@@ -5,18 +5,23 @@
   --font-sans: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
-  /* ---- Surfaces (dark only) ---- */
-  --color-void: #08080a;
-  --color-abyss: #0b0b0e;
-  --color-surface: #101015;
-  --color-elevated: #17171d;
+  /* ---- Surfaces (dark only) ----
+     Inverted from the usual "cards sit lighter than the page". Cards are true
+     black (#000) and the page is the lightest surface, so a card reads as a
+     real object punched out of the canvas instead of a grey rectangle floating
+     on it. Separation comes from hairlines and from the 4% lift on --color-void,
+     not from greying out the card. */
+  --color-void: #0c0c0f;
+  --color-abyss: #08080b;
+  --color-surface: #000000;
+  --color-elevated: #15151a;
   --color-hairline: #26262f;
-  --color-hairline-soft: #1b1b22;
+  --color-hairline-soft: #1a1a21;
 
-  /* ---- Type colors (all >= 4.5:1 on --color-surface) ---- */
+  /* ---- Type colors (all >= 4.5:1 on --color-surface, which is #000) ---- */
   --color-ink: #f4f4f5;
   --color-muted: #a1a1ac;
-  --color-faint: #7e7e8a;
+  --color-faint: #8a8a96;
 
   /* ---- Accent ----
      Two accents on purpose: `accent` is the legible ink tone (>= 4.5:1 on
@@ -102,9 +107,18 @@
     border-color: var(--color-hairline);
   }
 
+  /* `clip`, not `hidden`. `hidden` on one axis forces the other axis's
+     `visible` to compute to `auto`, which turns <body> into a scroll container
+     and leaves the document with two competing scrollers — Lenis drives the
+     window, so it never sees the real offset. `clip` suppresses the horizontal
+     overflow without establishing a scroll container, and unlike `hidden` it
+     composes with `visible` on the other axis. */
   html {
     background-color: var(--color-void);
     -webkit-text-size-adjust: 100%;
+    overflow-x: clip;
+    /* Lenis owns scrolling; native smooth-scroll would fight it. */
+    scroll-behavior: auto;
   }
 
   body {
@@ -115,7 +129,7 @@
     font-feature-settings: "ss01", "cv01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   ::selection {
@@ -402,7 +416,7 @@
   }
 
   .data-table tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.022);
+    background: rgba(255, 255, 255, 0.04);
   }
 }
 

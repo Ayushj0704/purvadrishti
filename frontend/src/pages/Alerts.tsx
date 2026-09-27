@@ -133,7 +133,7 @@ export function Alerts() {
               detail="No predictions have crossed the alert threshold in this window."
             />
           ) : (
-            <div className="overflow-x-auto">
+            <div data-lenis-prevent className="overflow-x-auto">
               <table className="data-table min-w-[52rem]">
                 <thead>
                   <tr>

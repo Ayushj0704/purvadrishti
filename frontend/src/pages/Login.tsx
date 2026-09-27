@@ -78,7 +78,7 @@ export function Login() {
 
           <ul className="grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-3">
             {PILLARS.map((pillar) => (
-              <li key={pillar.index} className="flex flex-col gap-3 bg-void p-5">
+              <li key={pillar.index} className="flex flex-col gap-3 bg-surface p-5">
                 <span className="label-caps tnum text-accent">{pillar.index}</span>
                 <span className="text-sm font-medium tracking-[-0.01em] text-ink">
                   {pillar.title}
@@ -90,8 +90,8 @@ export function Login() {
         </section>
 
         {/* Auth */}
-        <section className="flex flex-col justify-center gap-10 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
-          <div className="flex items-start gap-3 rounded-lg border border-elevated-risk/25 bg-elevated-risk/[0.06] p-4">
+        <section className="flex flex-col justify-center gap-6 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
+          <div className="flex items-start gap-3 rounded-lg border border-elevated-risk/40 bg-elevated-risk/15 p-4">
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
             <p className="text-xs leading-relaxed text-muted">
               Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
@@ -99,7 +99,10 @@ export function Login() {
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-7">
+          <form
+            onSubmit={handleLogin}
+            className="flex flex-col gap-7 rounded-xl border border-hairline bg-surface p-6 sm:p-8"
+          >
             <div className="flex flex-col gap-2">
               <h2 className="display text-[clamp(2rem,4vw,3rem)] text-ink">Authenticate</h2>
               <p className="text-sm text-muted">Restricted to authorised personnel.</p>
@@ -134,7 +137,7 @@ export function Login() {
             {error && (
               <p
                 role="alert"
-                className="rounded-lg border border-critical/40 bg-critical/[0.07] px-4 py-3 text-xs text-critical"
+                className="rounded-lg border border-critical/50 bg-critical/15 px-4 py-3 text-xs text-critical"
               >
                 {error}
               </p>

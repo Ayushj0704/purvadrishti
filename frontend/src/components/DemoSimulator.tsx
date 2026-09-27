@@ -57,7 +57,7 @@ export function DemoSimulator() {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3 sm:bottom-7 sm:right-7">
       {isRunning && stepIndex >= 0 && (
-        <div className="w-72 animate-rise overflow-hidden rounded-xl border border-hairline bg-void/95 backdrop-blur-xl">
+        <div className="w-72 animate-rise overflow-hidden rounded-xl border border-hairline bg-surface/95 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
             <span className="label-caps text-muted">Sequence</span>
             <span className="telemetry text-accent">
@@ -73,7 +73,7 @@ export function DemoSimulator() {
                   key={step.id}
                   className={cn(
                     "flex items-center gap-3 border-b border-hairline-soft px-4 py-2.5 last:border-b-0 transition-colors",
-                    isActive && "bg-accent/[0.08]",
+                    isActive && "bg-accent/15",
                   )}
                 >
                   <span className="flex size-3.5 shrink-0 items-center justify-center">
@@ -107,8 +107,8 @@ export function DemoSimulator() {
         className={cn(
           "label-caps inline-flex items-center gap-2.5 rounded-full border px-4 py-3 transition-all duration-200",
           isRunning
-            ? "border-critical/50 bg-critical/10 text-critical hover:bg-critical/20"
-            : "border-hairline bg-void/90 text-muted backdrop-blur hover:border-accent hover:text-ink",
+            ? "border-critical/50 bg-critical/20 text-critical hover:bg-critical/30"
+            : "border-hairline bg-surface/90 text-muted backdrop-blur hover:border-accent hover:text-ink",
         )}
       >
         <Wordmark className="size-3.5 text-accent" />

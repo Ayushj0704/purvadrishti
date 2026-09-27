@@ -1,47 +1,82 @@
-interface TimelineEvent {
+import { Panel, PanelHeader } from "./ui/Panel";
+import { formatTime } from "../lib/format";
+import { cn } from "../lib/cn";
+
+export type TimelineKind =
+  | "TRANSACTION"
+  | "COMPLAINT"
+  | "GENERATION"
+  | "PREDICTION"
+  | "ALERT"
+  | "ACTION";
+
+export interface TimelineEvent {
   id: string;
   timestamp: string;
   description: string;
-  type: 'TRANSACTION' | 'COMPLAINT' | 'GENERATION' | 'PREDICTION' | 'ALERT' | 'ACTION';
+  type: TimelineKind;
 }
 
-interface InvestigationTimelineProps {
+const KIND_TONE: Record<TimelineKind, { bar: string; text: string }> = {
+  TRANSACTION: { bar: "bg-faint", text: "text-faint" },
+  COMPLAINT: { bar: "bg-critical", text: "text-critical" },
+  GENERATION: { bar: "bg-accent", text: "text-accent" },
+  PREDICTION: { bar: "bg-accent-bright", text: "text-accent-bright" },
+  ALERT: { bar: "bg-elevated-risk", text: "text-elevated-risk" },
+  ACTION: { bar: "bg-stable", text: "text-stable" },
+};
+
+export function InvestigationTimeline({
+  events,
+  index = "04",
+  title = "Investigation timeline",
+}: {
   events: TimelineEvent[];
-}
-
-export function InvestigationTimeline({ events }: InvestigationTimelineProps) {
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'TRANSACTION': return 'bg-[#6E7182]';
-      case 'COMPLAINT': return 'bg-[#FF4C41]';
-      case 'GENERATION': return 'bg-[#1A2FFB]';
-      case 'PREDICTION': return 'bg-[#9333EA]';
-      case 'ALERT': return 'bg-[#F59E0B]';
-      case 'ACTION': return 'bg-[#10B981]';
-      default: return 'bg-[#6E7182]';
-    }
-  };
-
+  index?: string;
+  title?: string;
+}) {
   return (
-    <div className="bg-transparent">
-      <h3 className="text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-5">Investigation Timeline</h3>
-      <div className="relative border-l border-[#000000]/10 dark:border-[#FFFFFF]/10 ml-3 space-y-6 pb-2">
-        {events.map((event, _idx) => {
-          const time = new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          return (
-            <div key={event.id} className="relative pl-6">
-              <div className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ${getTypeColor(event.type)} ring-4 ring-[#FFFFFF] dark:ring-[#13131F] shadow-sm`} />
-              <div className="flex items-baseline gap-3">
-                <span className="text-[11px] font-mono font-medium text-[#6E7182] dark:text-[#9699AA] w-12 shrink-0">{time}</span>
-                <span className="text-sm font-medium text-[#000000] dark:text-[#FFFFFF]">{event.description}</span>
-              </div>
-            </div>
-          );
-        })}
-        {events.length === 0 && (
-          <div className="pl-6 text-sm font-mono text-[#9699AA]">No events logged.</div>
-        )}
-      </div>
-    </div>
+    <Panel>
+      <PanelHeader
+        index={index}
+        title={title}
+        meta={<span className="label-caps tnum text-faint">{events.length} events</span>}
+      />
+
+      {events.length === 0 ? (
+        <p className="px-5 py-10 text-center text-xs text-faint">No events logged.</p>
+      ) : (
+        <ol className="relative flex flex-col">
+          {events.map((event) => {
+            const tone = KIND_TONE[event.type];
+            return (
+              <li
+                key={event.id}
+                className="group relative grid grid-cols-[4.5rem_1px_1fr] gap-4 px-5 py-4"
+              >
+                <span className="telemetry pt-0.5 text-faint">{formatTime(event.timestamp)}</span>
+
+                <span className="relative flex justify-center">
+                  <span className="absolute inset-y-[-1rem] w-px bg-hairline first:inset-y-0 group-first:top-1.5 group-last:bottom-[calc(100%-0.375rem)]" />
+                  <span
+                    className={cn(
+                      "relative mt-1 size-1.5 shrink-0 rounded-full ring-4 ring-surface",
+                      tone.bar,
+                    )}
+                  />
+                </span>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm leading-snug tracking-[-0.01em] text-ink">
+                    {event.description}
+                  </span>
+                  <span className={cn("label-caps", tone.text)}>{event.type}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </Panel>
   );
 }

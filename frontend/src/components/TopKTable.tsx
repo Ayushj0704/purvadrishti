@@ -1,51 +1,85 @@
-import { RiskBadge } from './RiskBadge';
-import type { PredictionCandidate } from '../api/cases';
+import { Link } from "react-router-dom";
+import type { PredictionCandidate } from "../api/cases";
+import { RiskBadge, riskLevelFromScore } from "./ui/RiskBadge";
+import { EmptyState, Skeleton } from "./ui/EmptyState";
+import { Panel, PanelHeader } from "./ui/Panel";
+import { cn } from "../lib/cn";
 
 interface TopKTableProps {
   predictions: PredictionCandidate[];
   isLoading?: boolean;
+  caseId?: string;
+  title?: string;
+  index?: string;
 }
 
-export function TopKTable({ predictions, isLoading }: TopKTableProps) {
-  if (isLoading) {
-    return (
-      <div className="p-6 text-sm text-[#9699AA] text-center border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-xl bg-[#FFFFFF] dark:bg-[#13131F] animate-pulse font-mono">
-        Scoring candidates…
-      </div>
-    );
-  }
-  if (!predictions || predictions.length === 0) {
-    return (
-      <div className="p-6 text-sm text-[#9699AA] text-center border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-xl bg-[#FFFFFF] dark:bg-[#13131F] font-mono">
-        No candidate locations predicted.
-      </div>
-    );
-  }
-
+export function TopKTable({
+  predictions,
+  isLoading,
+  caseId,
+  title = "Ranked cash-out candidates",
+  index = "02",
+}: TopKTableProps) {
   return (
-    <div className="border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-xl overflow-hidden bg-[#FFFFFF] dark:bg-[#13131F]">
-      <table className="w-full text-sm text-left">
-        <thead className="border-b border-[#000000]/10 dark:border-[#FFFFFF]/10">
-          <tr>
-            <th className="px-4 py-3 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest">#</th>
-            <th className="px-4 py-3 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest">ATM ID</th>
-            <th className="px-4 py-3 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest">State</th>
-            <th className="px-4 py-3 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest">Risk</th>
-            <th className="px-4 py-3 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest">Score</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#000000]/8 dark:divide-[#FFFFFF]/8">
-          {predictions.map((p, idx) => (
-            <tr key={p.atm_id} className="hover:bg-[#1A2FFB]/5 transition-colors">
-              <td className="px-4 py-3 font-mono text-[#6E7182] dark:text-[#9699AA] text-xs">#{idx + 1}</td>
-              <td className="px-4 py-3 font-mono text-[#000000] dark:text-[#FFFFFF] text-xs font-semibold">{p.atm_id}</td>
-              <td className="px-4 py-3 font-mono text-[#6E7182] dark:text-[#9699AA] text-xs">{p.state || '—'}</td>
-              <td className="px-4 py-3"><RiskBadge level={p.risk_level} confidence={p.confidence} /></td>
-              <td className="px-4 py-3 font-mono text-[#000000] dark:text-[#FFFFFF] text-xs font-semibold">{(p.risk_score * 100).toFixed(1)}%</td>
+    <Panel>
+      <PanelHeader
+        index={index}
+        title={title}
+        meta={<span className="label-caps tnum text-faint">Top {predictions.length || "–"}</span>}
+      />
+
+      {isLoading ? (
+        <Skeleton rows={4} />
+      ) : predictions.length === 0 ? (
+        <EmptyState label="No candidates scored" detail="Awaiting a complaint to seed the model." />
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="w-12">Rank</th>
+              <th>ATM</th>
+              <th className="hidden sm:table-cell">State</th>
+              <th>Risk</th>
+              <th className="text-right">Score</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {predictions.map((p, idx) => {
+              const level = p.risk_level ?? riskLevelFromScore(p.risk_score);
+              return (
+                <tr key={p.atm_id}>
+                  <td>
+                    <span className={cn("label-caps tnum", idx === 0 ? "text-accent" : "text-faint")}>
+                      {String(idx + 1).padStart(2, "0")}
+                    </span>
+                  </td>
+                  <td>
+                    {caseId ? (
+                      <Link
+                        to={`/cases/${caseId}?atm=${encodeURIComponent(p.atm_id)}`}
+                        className="telemetry text-ink transition-colors hover:text-accent"
+                      >
+                        {p.atm_id}
+                      </Link>
+                    ) : (
+                      <span className="telemetry text-ink">{p.atm_id}</span>
+                    )}
+                  </td>
+                  <td className="hidden sm:table-cell">
+                    <span className="text-xs text-muted">{p.state || "—"}</span>
+                  </td>
+                  <td>
+                    <RiskBadge level={level} />
+                  </td>
+                  <td className="text-right">
+                    <span className="value tnum text-ink">{(p.risk_score * 100).toFixed(1)}%</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </Panel>
   );
 }

@@ -1,71 +1,127 @@
-import { useState, useEffect } from 'react';
-import { SlidersHorizontal } from 'lucide-react';
+import { useEffect, useState } from "react";
 
 export interface FilterState {
   timeWindow: string;
   state: string;
   crimeType: string;
-  amountRange: string;
   riskLevel: string;
-  bankAtm: string;
   caseStatus: string;
 }
+
+const DEFAULTS: FilterState = {
+  timeWindow: "24h",
+  state: "ALL",
+  crimeType: "ALL",
+  riskLevel: "ALL",
+  caseStatus: "OPEN",
+};
+
+const GROUPS: Array<{ key: keyof FilterState; label: string; options: Array<[string, string]> }> = [
+  {
+    key: "timeWindow",
+    label: "Window",
+    options: [
+      ["1h", "Last 1h"],
+      ["24h", "Last 24h"],
+      ["7d", "Last 7d"],
+      ["30d", "Last 30d"],
+    ],
+  },
+  {
+    key: "state",
+    label: "State",
+    options: [
+      ["ALL", "All states"],
+      ["DL", "Delhi"],
+      ["HR", "Haryana"],
+      ["RJ", "Rajasthan"],
+      ["UP", "Uttar Pradesh"],
+      ["PB", "Punjab"],
+      ["MH", "Maharashtra"],
+    ],
+  },
+  {
+    key: "crimeType",
+    label: "Vector",
+    options: [
+      ["ALL", "All vectors"],
+      ["UPI", "UPI fraud"],
+      ["CC", "Card fraud"],
+      ["PHISHING", "Phishing"],
+      ["NETBANKING", "Net banking"],
+    ],
+  },
+  {
+    key: "riskLevel",
+    label: "Risk",
+    options: [
+      ["ALL", "Any risk"],
+      ["HIGH", "High"],
+      ["MEDIUM", "Medium"],
+      ["LOW", "Low"],
+    ],
+  },
+  {
+    key: "caseStatus",
+    label: "Status",
+    options: [
+      ["ALL", "Any status"],
+      ["OPEN", "Open"],
+      ["INVESTIGATING", "Investigating"],
+      ["CLOSED", "Closed"],
+    ],
+  },
+];
 
 interface FilterBarProps {
   onFilterChange: (filters: FilterState) => void;
 }
 
 export function FilterBar({ onFilterChange }: FilterBarProps) {
-  const [filters, setFilters] = useState<FilterState>({
-    timeWindow: '24h', state: 'ALL', crimeType: 'ALL',
-    amountRange: 'ALL', riskLevel: 'ALL', bankAtm: 'ALL', caseStatus: 'ALL'
-  });
+  const [filters, setFilters] = useState<FilterState>(DEFAULTS);
 
-  useEffect(() => { onFilterChange(filters); }, [filters, onFilterChange]);
+  useEffect(() => {
+    onFilterChange(filters);
+  }, [filters, onFilterChange]);
 
-  const handleChange = (key: keyof FilterState, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  const update = (key: keyof FilterState, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const selectClasses = "bg-transparent border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-full px-3 py-1.5 text-xs font-mono text-[#2B2E3A] dark:text-[#F0F1FA] focus:outline-none focus:border-[#1A2FFB] min-w-[110px] cursor-pointer bg-[#FFFFFF] dark:bg-[#13131F] appearance-none";
+  const reset = () => setFilters(DEFAULTS);
+  const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULTS);
 
   return (
-    <div className="flex flex-wrap gap-2 items-center p-3 bg-[#FFFFFF]/60 dark:bg-[#13131F]/60 backdrop-blur-sm border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-xl">
-      <div className="flex items-center gap-2 text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mr-1">
-        <SlidersHorizontal className="w-3 h-3" />
-        Filters
+    <div className="border border-hairline">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+        <span className="label-caps text-muted">Query parameters</span>
+        <button
+          onClick={reset}
+          disabled={!isFiltered}
+          className="text-[0.6875rem] font-medium text-faint transition-colors hover:text-accent disabled:pointer-events-none disabled:opacity-40"
+        >
+          Reset
+        </button>
       </div>
-      <select className={selectClasses} value={filters.timeWindow} onChange={(e) => handleChange('timeWindow', e.target.value)}>
-        <option value="1h">Last 1h</option>
-        <option value="24h">Last 24h</option>
-        <option value="7d">Last 7d</option>
-        <option value="30d">Last 30d</option>
-      </select>
-      <select className={selectClasses} value={filters.state} onChange={(e) => handleChange('state', e.target.value)}>
-        <option value="ALL">All States</option>
-        <option value="DL">Delhi</option>
-        <option value="HR">Haryana</option>
-        <option value="RJ">Rajasthan</option>
-        <option value="UP">Uttar Pradesh</option>
-      </select>
-      <select className={selectClasses} value={filters.crimeType} onChange={(e) => handleChange('crimeType', e.target.value)}>
-        <option value="ALL">All Crimes</option>
-        <option value="UPI">UPI Fraud</option>
-        <option value="CC">Credit Card</option>
-        <option value="PHISHING">Phishing</option>
-      </select>
-      <select className={selectClasses} value={filters.riskLevel} onChange={(e) => handleChange('riskLevel', e.target.value)}>
-        <option value="ALL">All Risk</option>
-        <option value="HIGH">High Risk</option>
-        <option value="MEDIUM">Medium Risk</option>
-        <option value="LOW">Low Risk</option>
-      </select>
-      <select className={selectClasses} value={filters.caseStatus} onChange={(e) => handleChange('caseStatus', e.target.value)}>
-        <option value="ALL">All Status</option>
-        <option value="OPEN">Open</option>
-        <option value="INVESTIGATING">Investigating</option>
-        <option value="CLOSED">Closed</option>
-      </select>
+
+      <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-3 xl:grid-cols-5">
+        {GROUPS.map((group) => (
+          <label key={group.key} className="flex flex-col gap-2 bg-surface p-4">
+            <span className="label-caps text-faint">{group.label}</span>
+            <select
+              className="field cursor-pointer py-2"
+              value={filters[group.key]}
+              onChange={(e) => update(group.key, e.target.value)}
+            >
+              {group.options.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

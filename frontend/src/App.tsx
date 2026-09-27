@@ -1,21 +1,19 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { Login } from './pages/Login';
-
-import { Dashboard } from './pages/Dashboard';
-import { CaseDetail } from './pages/CaseDetail';
-import { Alerts } from './pages/Alerts';
-import { Analytics } from './pages/Analytics';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Login } from "./pages/Login";
+import { Dashboard } from "./pages/Dashboard";
+import { CaseDetail } from "./pages/CaseDetail";
+import { Alerts } from "./pages/Alerts";
+import { Analytics } from "./pages/Analytics";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        
+
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/heatmap" element={<div>Heatmap Placeholder</div>} />
           <Route path="/cases/:id" element={<CaseDetail />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/analytics" element={<Analytics />} />

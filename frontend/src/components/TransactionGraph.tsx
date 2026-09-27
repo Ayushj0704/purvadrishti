@@ -5,25 +5,58 @@ import {
   Background,
   useNodesState,
   useEdgesState,
-} from '@xyflow/react';
-import type { Edge, Node } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+} from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
+const NODE_BASE =
+  "flex min-w-[9.5rem] flex-col gap-1 border px-3.5 py-3 text-center backdrop-blur-sm";
 
 const initialNodes: Node[] = [
-  { id: 'victim', position: { x: 250, y: 0 }, data: { label: 'Victim Account' }, className: 'bg-[#FF4C41]/10 text-[#FF4C41] border border-[#FF4C41]/20 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
-  { id: 'mule-a', position: { x: 250, y: 100 }, data: { label: 'Mule Account A' }, className: 'bg-[#F8F9FE] dark:bg-[#1E1F2B] text-[#000000] dark:text-[#FFFFFF] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
-  { id: 'mule-b', position: { x: 100, y: 200 }, data: { label: 'Mule Account B' }, className: 'bg-[#F8F9FE] dark:bg-[#1E1F2B] text-[#000000] dark:text-[#FFFFFF] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
-  { id: 'mule-c', position: { x: 400, y: 200 }, data: { label: 'Mule Account C' }, className: 'bg-[#F8F9FE] dark:bg-[#1E1F2B] text-[#000000] dark:text-[#FFFFFF] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
-  { id: 'atm-a', position: { x: 100, y: 300 }, data: { label: 'ATM-A' }, className: 'bg-[#1A2FFB]/10 text-[#1A2FFB] border border-[#1A2FFB]/20 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
-  { id: 'atm-b', position: { x: 400, y: 300 }, data: { label: 'ATM-B' }, className: 'bg-[#1A2FFB]/10 text-[#1A2FFB] border border-[#1A2FFB]/20 rounded-xl p-3 font-semibold shadow-sm min-w-[150px] text-center font-mono text-xs' },
+  {
+    id: "victim",
+    position: { x: 260, y: 0 },
+    data: { label: "Victim account", role: "Origin" },
+    className: `${NODE_BASE} border-critical/50 bg-critical/[0.08] text-critical`,
+  },
+  {
+    id: "mule-a",
+    position: { x: 260, y: 110 },
+    data: { label: "Mule account A", role: "Hop 01" },
+    className: `${NODE_BASE} border-hairline bg-elevated text-ink`,
+  },
+  {
+    id: "mule-b",
+    position: { x: 80, y: 220 },
+    data: { label: "Mule account B", role: "Hop 02" },
+    className: `${NODE_BASE} border-hairline bg-elevated text-ink`,
+  },
+  {
+    id: "mule-c",
+    position: { x: 440, y: 220 },
+    data: { label: "Mule account C", role: "Hop 02" },
+    className: `${NODE_BASE} border-hairline bg-elevated text-ink`,
+  },
+  {
+    id: "atm-a",
+    position: { x: 80, y: 330 },
+    data: { label: "ATM · RJ-1023", role: "Cash-out" },
+    className: `${NODE_BASE} border-accent/50 bg-accent/[0.12] text-accent-bright`,
+  },
+  {
+    id: "atm-b",
+    position: { x: 440, y: 330 },
+    data: { label: "ATM · HR-2041", role: "Cash-out" },
+    className: `${NODE_BASE} border-accent/50 bg-accent/[0.12] text-accent-bright`,
+  },
 ];
 
 const initialEdges: Edge[] = [
-  { id: 'e1', source: 'victim', target: 'mule-a', animated: true, style: { stroke: '#FF4C41', strokeWidth: 2 } },
-  { id: 'e2', source: 'mule-a', target: 'mule-b', animated: true, style: { stroke: '#6E7182', strokeWidth: 2 } },
-  { id: 'e3', source: 'mule-a', target: 'mule-c', animated: true, style: { stroke: '#6E7182', strokeWidth: 2 } },
-  { id: 'e4', source: 'mule-b', target: 'atm-a', animated: true, style: { stroke: '#F59E0B', strokeWidth: 2 } },
-  { id: 'e5', source: 'mule-c', target: 'atm-b', animated: true, style: { stroke: '#F59E0B', strokeWidth: 2 } },
+  { id: "e1", source: "victim", target: "mule-a", animated: true, style: { stroke: "#ff4c41", strokeWidth: 1.5 } },
+  { id: "e2", source: "mule-a", target: "mule-b", style: { stroke: "#3a3a46", strokeWidth: 1.5 } },
+  { id: "e3", source: "mule-a", target: "mule-c", style: { stroke: "#3a3a46", strokeWidth: 1.5 } },
+  { id: "e4", source: "mule-b", target: "atm-a", animated: true, style: { stroke: "#f59e0b", strokeWidth: 1.5 } },
+  { id: "e5", source: "mule-c", target: "atm-b", style: { stroke: "#f59e0b", strokeWidth: 1.5 } },
 ];
 
 export function TransactionGraph() {
@@ -31,28 +64,43 @@ export function TransactionGraph() {
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   return (
-    <div className="bg-transparent h-[500px] flex flex-col">
-      <h3 className="text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-4">Money Flow Topology</h3>
-      <div className="w-full flex-1 border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-xl overflow-hidden bg-[#F8F9FE] dark:bg-[#0B0B12]">
+    <div className="border border-hairline bg-abyss">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+        <span className="label-caps text-muted">Money flow topology</span>
+        <span className="telemetry text-faint">
+          {nodes.length} nodes · {edges.length} edges
+        </span>
+      </div>
+
+      <div className="h-[30rem]">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           fitView
-          attributionPosition="bottom-right"
+          proOptions={{ hideAttribution: true }}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
         >
-          <Controls className="bg-[#FFFFFF] dark:bg-[#1E1F2B] border border-[#000000]/10 dark:border-[#FFFFFF]/10 fill-[#000000] dark:fill-[#FFFFFF] shadow-sm rounded-lg overflow-hidden" />
-          <MiniMap 
-            nodeColor={(n) => {
-              if (n.id === 'victim') return '#FF4C41';
-              if (n.id.startsWith('atm')) return '#1A2FFB';
-              return '#9699AA';
-            }} 
-            maskColor="rgba(230, 233, 244, 0.5)"
-            className="bg-[#FFFFFF] dark:bg-[#1E1F2B] border border-[#000000]/10 dark:border-[#FFFFFF]/10 rounded-lg shadow-sm"
+          <Controls
+            showInteractive={false}
+            className="!overflow-hidden !rounded-none !border !border-hairline !bg-void !shadow-none [&>button]:!border-hairline [&>button]:!bg-void [&>button]:!fill-muted [&>button:hover]:!bg-elevated"
           />
-          <Background color="#6E7182" gap={16} size={1} />
+          <MiniMap
+            pannable
+            zoomable
+            nodeColor={(n) => {
+              if (n.id === "victim") return "#ff4c41";
+              if (n.id.startsWith("atm")) return "#6f78ff";
+              return "#3a3a46";
+            }}
+            maskColor="rgba(8, 8, 10, 0.75)"
+            className="!border !border-hairline !bg-void"
+            style={{ borderRadius: 0 }}
+          />
+          <Background color="#1c1c24" gap={22} size={1} />
         </ReactFlow>
       </div>
     </div>

@@ -1,45 +1,354 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 
 @theme {
-  --font-display: 'Inter', system-ui;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --color-brand: #1A2FFB;
+  /* ---- Type ---- */
+  --font-sans: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* ---- Surfaces (dark only) ---- */
+  --color-void: #08080a;
+  --color-abyss: #0b0b0e;
+  --color-surface: #101015;
+  --color-elevated: #17171d;
+  --color-hairline: #26262f;
+  --color-hairline-soft: #1b1b22;
+
+  /* ---- Type colors (all >= 4.5:1 on --color-surface) ---- */
+  --color-ink: #f4f4f5;
+  --color-muted: #a1a1ac;
+  --color-faint: #7e7e8a;
+
+  /* ---- Accent ----
+     Two accents on purpose: `accent` is the legible ink tone (>= 4.5:1 on
+     surface) for small text and hairlines, `accent-strong` is the deep fill
+     that white text sits on. Never use one for the other's job. */
+  --color-accent: #6f78ff;
+  --color-accent-strong: #3d46ff;
+  --color-accent-hover: #4b52ff;
+  --color-accent-bright: #9aa0ff;
+  --color-accent-dim: #1b1f8f;
+
+  /* ---- Semantic risk ---- */
+  --color-critical: #ff4c41;
+  --color-elevated-risk: #f59e0b;
+  --color-stable: #10b981;
+
+  /* ---- Motion ---- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-rise: rise 0.7s var(--ease-out-expo) both;
+  --animate-marquee: marquee 42s linear infinite;
+  --animate-ping-slow: ping-slow 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  --animate-scan: scan 7s linear infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes ping-slow {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(400%);
+  }
 }
 
 @layer base {
-  *, *::before, *::after { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--color-hairline);
+  }
+
+  html {
+    background-color: var(--color-void);
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    background-color: #E6E9F4;
-    color: #000000;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    background-color: var(--color-void);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
+    overflow-x: hidden;
   }
-  .dark body {
-    background-color: #0B0B12;
-    color: #F0F1FA;
+
+  ::selection {
+    background: var(--color-accent);
+    color: #fff;
   }
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: #f8f8f8; }
-  .dark ::-webkit-scrollbar-track { background: #0B0B12; }
-  ::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 2px; }
-  .dark ::-webkit-scrollbar-thumb { background: #333333; }
-  ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
-  .dark ::-webkit-scrollbar-thumb:hover { background: #555555; }
+
+  :focus-visible {
+    outline: 1px solid var(--color-accent-bright);
+    outline-offset: 2px;
+  }
+
+  input,
+  select,
+  button,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  select option {
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  /* Numeric alignment for telemetry */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-void);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-hairline);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #33333f;
+  }
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-xl;
+  /* ---- Surfaces ---- */
+  .panel {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-hairline);
   }
-  .breadcrumb-pill {
-    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full px-4 py-2;
+
+  .panel-raised {
+    background-color: var(--color-elevated);
+    border: 1px solid var(--color-hairline);
   }
-  .nav-pill {
-    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full;
+
+  /* ---- Micro typography ----
+     Set in the grotesk, not a mono. Wide-tracked monospace everywhere is the
+     single loudest "generated template" tell; mono is reserved for actual
+     telemetry (see .telemetry) so it carries meaning again. */
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.005em;
+    color: var(--color-faint);
+  }
+
+  .micro {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    color: var(--color-faint);
+  }
+
+  .label-caps {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* IDs, timestamps, scores — the only place monospace is warranted */
+  .telemetry {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Machine values set in the grotesk with tabular figures. Prefer this over
+     .telemetry for scores/times: keeps columns aligned without the terminal
+     look, which monospace gives away badly at small sizes. Reserve .telemetry
+     for identifiers a human would read out loud (ATM code, UTR, case id). */
+  .value {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .display {
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 0.88;
+    text-wrap: balance;
+  }
+
+  /* ---- Ambient backdrops ---- */
+  .grid-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.032) 1px,
+      transparent 1px
+    );
+    background-size: 8.3333% 100%;
+    mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+  }
+
+  .glow-field {
+    position: fixed;
+    z-index: 0;
+    pointer-events: none;
+    width: 60rem;
+    height: 60rem;
+    border-radius: 9999px;
+    filter: blur(140px);
+    opacity: 0.2;
+    background: var(--color-accent-strong);
+  }
+
+  .noise-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.032;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---- Reveal on scroll ---- */
+  .reveal {
+    opacity: 0;
+  }
+
+  .reveal[data-shown="true"] {
+    animation: var(--animate-rise);
+  }
+
+  /* ---- Kinetic type ---- */
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: var(--animate-marquee);
+  }
+
+  /* ---- Form controls ---- */
+  .field {
+    width: 100%;
+    background-color: var(--color-abyss);
+    border: 1px solid var(--color-hairline);
+    padding: 0.75rem 0.875rem;
+    font-size: 0.8125rem;
+    letter-spacing: -0.005em;
+    color: var(--color-ink);
+    transition: border-color 0.2s var(--ease-out-expo);
+  }
+
+  .field-mono {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    letter-spacing: -0.01em;
+  }
+
+  .field::placeholder {
+    color: var(--color-faint);
+  }
+
+  .field:hover {
+    border-color: #2c2c36;
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  /* ---- Tables ---- */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table thead th {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+    text-align: left;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--color-hairline);
+    white-space: nowrap;
+  }
+
+  .data-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-hairline-soft);
+    vertical-align: middle;
+  }
+
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .data-table tbody tr {
+    transition: background-color 0.18s ease;
+  }
+
+  .data-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.022);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal {
+    opacity: 1;
   }
 }

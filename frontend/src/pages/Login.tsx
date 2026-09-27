@@ -1,122 +1,156 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight, ShieldAlert } from "lucide-react";
+import { Wordmark } from "../components/layout/Wordmark";
+import { Button } from "../components/ui/Button";
 
+const DEMO_CREDENTIALS = { username: "investigator", password: "demo" };
+
+const PILLARS = [
+  {
+    index: "01",
+    title: "Rank the trail",
+    body: "Every ATM inside the candidate radius is scored, then ordered. Rank is the deliverable.",
+  },
+  {
+    index: "02",
+    title: "Window the cash-out",
+    body: "A dedicated time regressor returns minutes-to-cash-out so patrol knows when to move.",
+  },
+  {
+    index: "03",
+    title: "Cross state lines",
+    body: "Victim in Delhi, cash-out in Rajasthan — the trail that used to end the search.",
+  },
+];
 
 export function Login() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
-  
-  // Need to handle theme at page level since it's outside ProtectedRoute
-  // We'll wrap it in ThemeProvider inside App.tsx or use raw classes
-  // Wait, if it's outside ThemeProvider, useTheme will fail.
-  // I'll make a standalone theme wrapper or just rely on global body dark class.
-  // To avoid crash if outside ThemeProvider, let's just use document.documentElement.classList
-  
-  const isDark = document.documentElement.classList.contains('dark');
-  const [theme, setTheme] = useState(isDark ? 'dark' : 'light');
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
-    if (newTheme === 'dark') {
-       document.documentElement.classList.add('dark');
-    } else {
-       document.documentElement.classList.remove('dark');
-    }
-    localStorage.setItem('purvadrishti-theme', newTheme);
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    if (username === 'investigator' && password === 'demo') {
-      localStorage.setItem('auth_token', 'demo_token_123');
-      navigate('/');
+    setError("");
+    if (username === DEMO_CREDENTIALS.username && password === DEMO_CREDENTIALS.password) {
+      localStorage.setItem("auth_token", "demo_token_123");
+      navigate("/");
     } else {
-      setError('Invalid credentials. Use investigator / demo');
+      setError("Credentials rejected. Use investigator / demo.");
     }
   };
 
   return (
-    <div className={theme}>
-      <div className="min-h-screen bg-[#E6E9F4] dark:bg-gradient-to-br dark:from-[#0B0B12] dark:via-[#111827] dark:to-[#0B0B12] flex flex-col items-center justify-center p-6 transition-colors duration-300">
-        {/* Top bar with theme toggle */}
-        <div className="absolute top-4 right-4">
-          <button
-            onClick={toggleTheme}
-            className="w-9 h-9 rounded-full bg-[#FFFFFF] dark:bg-[#1E1F2B] border border-[#000000]/14 dark:border-[#FFFFFF]/10 flex items-center justify-center text-[#000000] dark:text-[#FFFFFF] transition-all"
-            aria-label="Toggle Theme"
-          >
-            {theme === 'dark' ? '☀' : '🌙'}
-          </button>
-        </div>
+    <div className="relative min-h-screen overflow-hidden bg-void">
+      <div className="grid-backdrop" />
+      <div className="glow-field -top-40 left-1/4" />
+      <div className="noise-overlay" />
 
-        {/* Security warning */}
-        <div className="w-full max-w-sm mb-6 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-xl px-4 py-2.5 text-center">
-          <p className="text-xs text-[#F59E0B] font-mono font-medium">
-            ⚠ DEMO: Does not connect to live NCRP, banking or I4C systems
-          </p>
-        </div>
-
-        {/* Login Card */}
-        <div className="w-full max-w-sm bg-[#FFFFFF] dark:bg-[#13131F] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-2xl p-8 shadow-2xl">
-          {/* Logo */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-full bg-[#000000] dark:bg-[#FFFFFF] text-[#FFFFFF] dark:text-[#000000] flex items-center justify-center font-bold text-lg tracking-tight mb-4 shadow-lg">
-              PD
+      <div className="relative z-10 mx-auto grid min-h-screen max-w-[110rem] lg:grid-cols-12">
+        {/* Manifesto */}
+        <section className="flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
+          <div className="flex items-center gap-3 text-accent">
+            <Wordmark className="size-8" />
+            <div className="flex flex-col leading-none">
+              <span className="text-base font-semibold tracking-[-0.03em] text-ink">
+                Purvadrishti
+              </span>
+              <span className="eyebrow mt-1.5">Cash-out intelligence</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-[#000000] dark:text-[#FFFFFF]">Purvadrishti</h1>
-            <p className="text-xs font-mono text-[#6E7182] dark:text-[#9699AA] mt-1 uppercase tracking-widest text-center">Cyber Fraud Intelligence Platform</p>
           </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-5">
-            <div>
-              <label className="block text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-2">
-                Badge ID / Username
-              </label>
+          <div className="animate-rise">
+            <p className="eyebrow text-accent">Smart India Hackathon 26</p>
+            <h1 className="display mt-8 text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
+              The money
+              <br />
+              leaves a trail.
+              <br />
+              <span className="text-accent">We read it.</span>
+            </h1>
+            <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
+              Fraud funds surface as cash within hours, somewhere in India. Purvadrishti turns a
+              victim complaint into a ranked list of probable ATMs and a predicted withdrawal
+              window — before the cash is gone.
+            </p>
+          </div>
+
+          <ul className="grid gap-px border border-hairline bg-hairline sm:grid-cols-3">
+            {PILLARS.map((pillar) => (
+              <li key={pillar.index} className="flex flex-col gap-3 bg-void p-5">
+                <span className="label-caps tnum text-accent">{pillar.index}</span>
+                <span className="text-sm font-medium tracking-[-0.01em] text-ink">
+                  {pillar.title}
+                </span>
+                <span className="text-xs leading-relaxed text-faint">{pillar.body}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* Auth */}
+        <section className="flex flex-col justify-center gap-10 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
+          <div className="flex items-start gap-3 border border-elevated-risk/25 bg-elevated-risk/[0.06] p-4">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
+            <p className="text-xs leading-relaxed text-muted">
+              Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
+              record you see is generated.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-7">
+            <div className="flex flex-col gap-2">
+              <h2 className="display text-[clamp(2rem,4vw,3rem)] text-ink">Authenticate</h2>
+              <p className="text-sm text-muted">Restricted to authorised personnel.</p>
+            </div>
+
+            <label className="flex flex-col gap-2.5">
+              <span className="eyebrow">Badge ID</span>
               <input
                 type="text"
                 value={username}
-                onChange={e => setUsername(e.target.value)}
-                className="bg-[#F8F9FE] dark:bg-[#0B0B12] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-xl px-4 py-3 text-sm text-[#000000] dark:text-[#FFFFFF] placeholder-[#9699AA] focus:outline-none focus:border-[#1A2FFB] focus:ring-1 focus:ring-[#1A2FFB]/30 transition-all w-full"
+                onChange={(e) => setUsername(e.target.value)}
+                className="field field-mono"
                 placeholder="investigator"
+                autoComplete="username"
                 required
               />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-2">
-                Password
-              </label>
+            </label>
+
+            <label className="flex flex-col gap-2.5">
+              <span className="eyebrow">Passphrase</span>
               <input
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="bg-[#F8F9FE] dark:bg-[#0B0B12] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-xl px-4 py-3 text-sm text-[#000000] dark:text-[#FFFFFF] placeholder-[#9699AA] focus:outline-none focus:border-[#1A2FFB] focus:ring-1 focus:ring-[#1A2FFB]/30 transition-all w-full"
+                onChange={(e) => setPassword(e.target.value)}
+                className="field field-mono"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
-            </div>
+            </label>
 
             {error && (
-              <div className="text-[#FF4C41] text-xs p-3 bg-[#FF4C41]/10 border border-[#FF4C41]/20 rounded-xl font-mono">
+              <p
+                role="alert"
+                className="border border-critical/40 bg-critical/[0.07] px-4 py-3 text-xs text-critical"
+              >
                 {error}
-              </div>
+              </p>
             )}
 
-            <button
-              type="submit"
-              className="w-full bg-[#1A2FFB] hover:bg-[#0A1FDB] text-white font-semibold text-sm py-3 px-4 rounded-xl transition-all shadow-lg shadow-[#1A2FFB]/25 mt-1"
-            >
-              Authenticate
-            </button>
+            <Button type="submit" variant="primary" className="w-full justify-between">
+              Enter console
+              <ArrowRight className="size-3.5" />
+            </Button>
           </form>
 
-          <p className="text-[10px] text-[#9699AA] text-center mt-6 leading-relaxed font-mono">
-            Authorized law enforcement and partner use only.<br />All activity is monitored and logged.
-          </p>
-        </div>
+          <div className="flex items-center justify-between border-t border-hairline pt-6">
+            <span className="label-caps text-faint">LEA / Bank / I4C</span>
+            <span className="label-caps text-faint">Audit logged</span>
+          </div>
+        </section>
       </div>
     </div>
   );

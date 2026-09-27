@@ -1,40 +1,81 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { EmptyState, Skeleton } from "../components/ui/EmptyState";
+import { CHART, RISK_COLOR, TOOLTIP_STYLE } from "../lib/chart";
 
-interface ThreatData { time: string; complaints: number; predictions: number; }
+interface ThreatData {
+  time: string;
+  complaints: number;
+  predictions: number;
+}
 
 export function ThreatVelocityChart({ data, isLoading }: { data: ThreatData[]; isLoading?: boolean }) {
-  if (isLoading) {
-    return (
-      <div className="w-full h-[350px] bg-transparent flex items-center justify-center text-sm font-mono text-[#9699AA] animate-pulse">
-        Loading threat velocity...
-      </div>
-    );
-  }
+  if (isLoading) return <Skeleton rows={5} className="p-5" />;
+  if (!data?.length) return <EmptyState label="No velocity samples in window" />;
+
   return (
-    <div className="bg-transparent p-5">
-      <h3 className="text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-5">Threat Velocity – Last 24h</h3>
-      <div className="h-[300px]">
+    <div className="px-5 py-6">
+      <div className="h-[19rem]">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
             <defs>
               <linearGradient id="gComplaints" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#FF4C41" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#FF4C41" stopOpacity={0} />
+                <stop offset="0%" stopColor={RISK_COLOR.critical} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={RISK_COLOR.critical} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gPredictions" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#1A2FFB" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#1A2FFB" stopOpacity={0} />
+                <stop offset="0%" stopColor={RISK_COLOR.accent} stopOpacity={0.32} />
+                <stop offset="100%" stopColor={RISK_COLOR.accent} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#6E7182" opacity={0.2} vertical={false} />
-            <XAxis dataKey="time" stroke="#6E7182" fontSize={11} tickLine={false} axisLine={false} dy={8} />
-            <YAxis stroke="#6E7182" fontSize={11} tickLine={false} axisLine={false} dx={-8} />
-            <Tooltip contentStyle={{ backgroundColor: '#13131F', borderColor: '#333', color: '#F0F1FA', borderRadius: '8px', fontSize: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }} />
-            <Legend wrapperStyle={{ paddingTop: '16px', fontSize: '12px', fontFamily: 'IBM Plex Mono' }} />
-            <Area type="monotone" name="New Complaints" dataKey="complaints" stroke="#FF4C41" strokeWidth={2} fillOpacity={1} fill="url(#gComplaints)" />
-            <Area type="monotone" name="Predictions Generated" dataKey="predictions" stroke="#1A2FFB" strokeWidth={2} fillOpacity={1} fill="url(#gPredictions)" />
+
+            <CartesianGrid stroke={CHART.grid} vertical={false} />
+            <XAxis
+              dataKey="time"
+              stroke={CHART.axis}
+              fontSize={10}
+              fontFamily={CHART.mono}
+              tickLine={false}
+              axisLine={{ stroke: CHART.grid }}
+              dy={8}
+              interval={5}
+            />
+            <YAxis
+              stroke={CHART.axis}
+              fontSize={10}
+              fontFamily={CHART.mono}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: CHART.axis, marginBottom: 4 }} />
+            <Area
+              type="monotone"
+              name="New complaints"
+              dataKey="complaints"
+              stroke={RISK_COLOR.critical}
+              strokeWidth={1.5}
+              fill="url(#gComplaints)"
+            />
+            <Area
+              type="monotone"
+              name="Predictions generated"
+              dataKey="predictions"
+              stroke={RISK_COLOR.accent}
+              strokeWidth={1.5}
+              fill="url(#gPredictions)"
+            />
           </AreaChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-6 border-t border-hairline pt-4">
+        <span className="flex items-center gap-2">
+          <span className="h-px w-5 bg-critical" />
+          <span className="label-caps text-faint">New complaints</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="h-px w-5 bg-accent" />
+          <span className="label-caps text-faint">Predictions generated</span>
+        </span>
       </div>
     </div>
   );

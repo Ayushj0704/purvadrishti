@@ -1,4 +1,6 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { EmptyState } from "../components/ui/EmptyState";
+import { CHART, RISK_COLOR } from "../lib/chart";
 
 export interface ShapFeature {
   feature_name: string;
@@ -6,61 +8,86 @@ export interface ShapFeature {
   description: string;
 }
 
-interface ShapContributionChartProps {
-  data: ShapFeature[];
-  isLoading?: boolean;
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: ShapFeature }>;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const d = payload[0].payload as ShapFeature;
-    return (
-      <div className="bg-[#FFFFFF] dark:bg-[#13131F] border border-[#000000]/14 dark:border-[#FFFFFF]/10 rounded-lg p-3 shadow-lg max-w-xs">
-        <p className="font-semibold text-[#000000] dark:text-[#FFFFFF] text-sm mb-1">{d.feature_name}</p>
-        <p className="text-xs text-[#6E7182] dark:text-[#9699AA] mb-2 font-mono">{d.description}</p>
-        <p className={`text-sm font-mono font-medium ${d.contribution > 0 ? 'text-[#FF4C41]' : 'text-[#10B981]'}`}>
-          {d.contribution > 0 ? '+' : ''}{(d.contribution * 100).toFixed(1)}% risk
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+function CustomTooltip({ active, payload }: TooltipProps) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  const positive = d.contribution > 0;
 
-export function ShapContributionChart({ data, isLoading }: ShapContributionChartProps) {
-  if (isLoading) {
-    return (
-      <div className="w-full min-h-[300px] flex items-center justify-center text-sm font-mono text-[#9699AA] animate-pulse bg-transparent">
-        Generating explanation...
-      </div>
-    );
-  }
-  if (!data || data.length === 0) {
-    return (
-      <div className="w-full min-h-[300px] flex items-center justify-center text-sm font-mono text-[#9699AA] bg-transparent">
-        No explanation data available.
-      </div>
-    );
+  return (
+    <div className="max-w-[18rem] border border-hairline bg-void/95 p-3.5 backdrop-blur">
+      <p className="text-[0.8125rem] font-medium tracking-[-0.01em] text-ink">{d.feature_name}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-faint">{d.description}</p>
+      <p
+        className="telemetry mt-3 border-t border-hairline pt-2.5"
+        style={{ color: positive ? RISK_COLOR.negative : RISK_COLOR.positive }}
+      >
+        {positive ? "+" : ""}
+        {(d.contribution * 100).toFixed(1)}% risk
+      </p>
+    </div>
+  );
+}
+
+export function ShapContributionChart({ data }: { data: ShapFeature[]; isLoading?: boolean }) {
+  if (!data?.length) {
+    return <EmptyState label="No explanation data available" />;
   }
 
   const sorted = [...data].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
 
   return (
-    <div className="bg-transparent p-5">
-      <h3 className="text-[10px] font-mono font-semibold text-[#6E7182] dark:text-[#9699AA] uppercase tracking-widest mb-5">SHAP — Risk Factor Contributions</h3>
-      <div className="h-[280px]">
+    <div className="px-5 py-6">
+      <div className="h-[20rem]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={sorted} layout="vertical" margin={{ top: 0, right: 24, left: 0, bottom: 0 }}>
-            <XAxis type="number" tickFormatter={v => `${(v * 100).toFixed(0)}%`} stroke="#6E7182" fontSize={11} tickLine={false} axisLine={false} />
-            <YAxis dataKey="feature_name" type="category" width={130} stroke="#6E7182" fontSize={11} tickLine={false} axisLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(110,113,130,0.1)' }} />
-            <Bar dataKey="contribution" radius={[0, 4, 4, 0]}>
-              {sorted.map((e, i) => (
-                <Cell key={i} fill={e.contribution > 0 ? '#FF4C41' : '#10B981'} />
+          <BarChart
+            data={sorted}
+            layout="vertical"
+            margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
+            barCategoryGap={6}
+          >
+            <XAxis
+              type="number"
+              tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+              stroke={CHART.tick}
+              fontSize={10}
+              fontFamily={CHART.mono}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              dataKey="feature_name"
+              type="category"
+              width={132}
+              stroke={CHART.axis}
+              fontSize={11}
+              fontFamily={CHART.font}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
+            <Bar dataKey="contribution" radius={0} maxBarSize={18}>
+              {sorted.map((f, i) => (
+                <Cell key={i} fill={f.contribution > 0 ? RISK_COLOR.negative : RISK_COLOR.positive} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      <div className="mt-5 flex items-center gap-6 border-t border-hairline pt-4">
+        <span className="flex items-center gap-2">
+          <span className="size-2 bg-critical" />
+          <span className="label-caps text-faint">Raises risk</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="size-2 bg-stable" />
+          <span className="label-caps text-faint">Lowers risk</span>
+        </span>
       </div>
     </div>
   );

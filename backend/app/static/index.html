@@ -192,7 +192,7 @@ async function predict(){
   r.predictions.forEach((p,idx)=>{
     const sc=p.scores?('30m:'+p.scores[30]+' 4h:'+p.scores[240]):'';
     const rank=idx+1;
-    h+='<tr'+(p.best_bet?' style="background:#1e3a5f"':'')+'><td><b>#'+rank+' '+p.atm_id+'</b>'+(p.best_bet?' ⭐':'')+(p.heat&&p.heat.level!=='LOW'?' 🔥'+p.heat.level:'')+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td><b>'+(p.predicted_window||'')+'</b><br><span style="font-size:10px">'+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
+    h+='<tr'+(p.best_bet?' style="background:#1e3a5f"':'')+'><td><b>#'+rank+' '+p.atm_id+'</b>'+(p.best_bet?' ⭐':'')+(p.heat&&p.heat.level!=='LOW'?' 🔥'+p.heat.level:'')+'<br><span style="font-size:10px;color:#94a3b8">'+(p.basis||'')+'</span></td><td>'+p.score+'</td><td>⏰ <b>'+(p.expected_between?p.expected_between[0]+'–'+p.expected_between[1]:p.predicted_window||'')+'</b><br><span style="font-size:10px">'+(p.predicted_window||'')+' | '+sc+'</span></td><td class="'+p.risk_level+'">'+p.risk_level+'</td><td>'+(p.top_reasons[0]||'')+'</td></tr>';
     pts.push([p.lat,p.lon]);
     const col=color(p.risk_level);
     const icon=L.divIcon({className:'',html:'<div style="background:'+col+';color:#000;font-weight:bold;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;border:2px solid #fff">'+rank+'</div>',iconSize:[24,24]});

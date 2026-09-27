@@ -10,6 +10,9 @@ MODEL_DIR = Path(__file__).parent / "models"
 HORIZONS = [30, 60, 240, 720]
 WINDOW_LABELS = {30: "next 30 min", 60: "30–60 min",
                  240: "1–4 hrs", 720: "4–12 hrs"}
+# Window bounds in minutes from prediction time T (demonstrates WHEN,
+# not just where — the primary headline per ATM).
+WINDOW_BOUNDS = {30: (0, 30), 60: (30, 60), 240: (60, 240), 720: (240, 720)}
 _BOOSTERS: dict = {}
 _CAL = _META = None
 _LOADED = False
@@ -122,17 +125,18 @@ def score_multi(db, case, cands, ref_lat=None, ref_lon=None):
     out = []
     for i, (a, (_, f)) in enumerate(zip(atms, pairs)):
         scores = {h: round(float(probs[h][i]), 3) for h in probs}
-        window = ">12 hrs / low"
+        window, bounds = ">12 hrs / low", None
         for h in HORIZONS:
             if h in scores:
                 hi, _ = get_thresholds(h)
                 if scores[h] >= hi:
-                    window = WINDOW_LABELS[h]
+                    window, bounds = WINDOW_LABELS[h], WINDOW_BOUNDS[h]
                     break
         # basis is refined by the endpoint with live burst heat; default here:
         out.append({"scores": scores,
                     "reasons": top_reasons(b60, np.array([f[k] for k in FEATURES]), f),
                     "label": model_label(),
                     "predicted_window": window,
+                    "window_bounds_min": bounds,
                     "basis": "geo-only (no prior track)"})
     return out

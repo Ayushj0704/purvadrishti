@@ -308,14 +308,24 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
     top = scored[:settings.top_k]
     by_key = {(s, a.id): m for (s, a, p, r, m) in new_preds}
     margin = round(top[0][0] - top[1][0], 3) if len(top) > 1 else 0.0
+    from datetime import timedelta as _td2
+    _gen = time.time()
     preds = []
     for i, (s, a, p, r) in enumerate(top):
         m = by_key[(s, a.id)]
         h = heat.get(a.id, {"n2h": 0, "n6h": 0, "level": "LOW"})
+        bounds = m.get("window_bounds_min")
+        if bounds:
+            t0 = _dtm.utcfromtimestamp(_gen) + _td2(minutes=bounds[0])
+            t1 = _dtm.utcfromtimestamp(_gen) + _td2(minutes=bounds[1])
+            expect = [t0.strftime("%H:%M"), t1.strftime("%H:%M")]
+        else:
+            expect = None  # beyond +12h / low conviction — no clock claim
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
                       "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
+                      "expected_between": expect,
                       "basis": m["basis"],
                       "heat": h,
                       "best_bet": i == 0,

@@ -14,6 +14,7 @@ import { StatusPill } from "../components/ui/StatusDot";
 import { heatmapApi, alertsApi } from "../api";
 import type { PredictionCandidate } from "../api/cases";
 import type { Alert } from "../api/alerts";
+import { StatusStrip } from "../components/layout/StatusStrip";
 import { formatCompact, formatTime } from "../lib/format";
 
 const FALLBACK_ALERT: Alert = {
@@ -152,6 +153,10 @@ export function Dashboard() {
             },
           ]}
         />
+      </Reveal>
+
+      <Reveal>
+        <StatusStrip className="-mx-5 sm:-mx-8" />
       </Reveal>
 
       <Reveal>

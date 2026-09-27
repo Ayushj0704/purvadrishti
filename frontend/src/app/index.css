@@ -1,0 +1,9 @@
+/* Console entry stylesheet.
+   `source(none)` disables Tailwind's automatic content detection — without it
+   Tailwind walks the whole project and would emit every utility used by the
+   landing page into the dashboard's CSS. The explicit @source below keeps this
+   graph to src/app/** only. */
+@import "tailwindcss" source(none);
+@import "../styles/tokens.css";
+
+@source "./**/*.{ts,tsx}";

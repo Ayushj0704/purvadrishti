@@ -1,0 +1,921 @@
+@import "tailwindcss" source(none);
+@import "../styles/tokens.css";
+@import "lenis/dist/lenis.css";
+
+@source "./**/*.{ts,tsx}";
+
+/* ==========================================================================
+   Type scale, easing and radius.
+
+   The reference system runs on a single weight (500) across body *and* display
+   type - hierarchy comes from size, tracking and line-height instead. Tracking
+   tightens as the type grows, which is what stops a very large heading from
+   falling apart. These three tokens are the backbone of the whole page.
+   ========================================================================== */
+
+:root {
+  --ease: cubic-bezier(0.5, 0, 0, 1);
+  --ease-bounce: cubic-bezier(0.17, 0.67, 0.3, 1.33);
+  --ease-smooth: cubic-bezier(0.38, 0.005, 0.215, 1);
+
+  /* Small on controls, large on whole panels. Nothing in between, nothing sharp. */
+  --r-sm: 10px;
+  --r-md: 15px;
+  --r-lg: 35px;
+
+  --display-2xl: clamp(3rem, 1.1rem + 8.6vw, 8.5rem);
+  --display-xl: clamp(2.5rem, 1.2rem + 5.6vw, 5.25rem);
+  --display-lg: clamp(2rem, 1.1rem + 3.6vw, 3.75rem);
+  --body-lg: clamp(1.0625rem, 1.02rem + 0.22vw, 1.1875rem);
+  --body-md: clamp(0.9375rem, 0.9rem + 0.18vw, 1.0625rem);
+}
+
+/* ---------------------------------------------------------------- canvas -- */
+
+#gl-field {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(12, 12, 15, 0.72) 0%, transparent 62%),
+    radial-gradient(ellipse 100% 100% at 50% 45%, transparent 30%, rgba(8, 8, 11, 0.92) 100%);
+}
+
+#landing,
+#landing main {
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------ typography -- */
+
+.display {
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  color: var(--color-ink);
+}
+
+/* Sentence case everywhere, no letterspacing games. The kicker is a quiet
+   sentence, not a shouted label. */
+.kicker,
+.stat-label,
+.metric-label,
+.metric-note,
+.rail-pill,
+.foot-nav-link,
+.footer-head,
+.footer-body {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-faint);
+}
+
+.kicker {
+  color: var(--color-accent);
+  margin-bottom: 1rem;
+}
+
+.body-lg {
+  font-size: var(--body-lg);
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+  color: var(--color-muted);
+}
+
+.body-md {
+  font-size: var(--body-md);
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  color: var(--color-muted);
+}
+
+/* Links carry a wipe-in underline rather than a colour change. Weight 600
+   against a 500 page is the only "bold" in the whole system. */
+a {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 1px;
+  transition:
+    background-size 0.25s var(--ease),
+    color 0.25s var(--ease);
+  text-decoration: none;
+}
+
+a:hover {
+  background-size: 100% 1px;
+}
+
+/* --------------------------------------------------------------- layout -- */
+
+.shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 82rem;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .shell {
+    padding-inline: 2.5rem;
+  }
+}
+
+.section {
+  padding-block: clamp(3rem, 5vw, 4.5rem);
+}
+
+/* ------------------------------------------------------------------ stack --
+ * Content sections are opaque panels stacked one on top of another. Each is
+ * pinned for a while, then the next one slides up over it from the bottom -
+ * the two read as separate cards only if the incoming panel is genuinely
+ * opaque, so these deliberately do not go translucent like the tiles do. */
+
+.stack-panel {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: clamp(1.75rem, 3.5vh, 3rem);
+  min-height: 100svh;
+  padding-block: clamp(4.5rem, 8vh, 6.5rem);
+  border-top: 1px solid var(--color-hairline);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background-color: rgba(9, 9, 12, 0.985);
+  background-image: radial-gradient(
+    ellipse 90% 55% at 50% 0%,
+    rgba(61, 70, 255, 0.11),
+    transparent 70%
+  );
+  box-shadow: 0 -2rem 4rem rgba(0, 0, 0, 0.55);
+}
+
+/* Content taller than the viewport cannot be pinned without hiding part of
+   it, so motion.ts drops the pin and this keeps the panel in normal flow. */
+.stack-panel.is-unpinned {
+  min-height: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+}
+
+/* Short viewports (a 1366x768 laptop, a landscape phone) have the least room,
+   so the panel gives some of it back: tighter padding and a smaller heading.
+   Without this the panels come up a little over one viewport and lose their
+   pin, which is the difference between the stacked effect and a gappy
+   scroll. Phones in portrait are deliberately left alone - six cards in one
+   column cannot fit any viewport, and there the unpinned fallback is correct. */
+@media (min-width: 760px) and (max-height: 880px) {
+  .stack-panel {
+    padding-block: clamp(2.25rem, 4.5vh, 3.5rem);
+  }
+
+  .stack-panel .section-title,
+  .stack-panel .split-title,
+  .stack-panel .numbers-title,
+  .stack-panel .rails-title {
+    font-size: clamp(2rem, 5.4svh, 3.5rem);
+  }
+}
+
+.section-title,
+.numbers-title,
+.rails-title {
+  font-size: var(--display-xl);
+  max-width: 20ch;
+}
+
+/* ------------------------------------------------------------------- nav -- */
+/* A floating bar inset from the edges, not a full-bleed header. */
+
+.landing-nav {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  height: 64px;
+  padding-inline: 0.75rem 0.75rem;
+  border-radius: var(--r-sm);
+  background-color: rgba(12, 12, 15, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--color-hairline);
+  transition:
+    background-color 0.4s var(--ease),
+    border-color 0.4s var(--ease);
+}
+
+.landing-nav.is-scrolled {
+  background-color: rgba(8, 8, 11, 0.92);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-left: 0.5rem;
+  color: var(--color-accent);
+}
+
+.nav-brand-name {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--color-ink);
+}
+
+.nav-links {
+  display: none;
+  align-items: center;
+  gap: 2rem;
+}
+
+@media (min-width: 900px) {
+  .nav-links {
+    display: flex;
+  }
+}
+
+.nav-link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.nav-link:hover {
+  color: var(--color-ink);
+}
+
+/* --------------------------------------------------------------- buttons -- */
+/* The signature interaction: a full-bleed wipe rises behind the label from a
+   circle at the left, and the label slides right to make room for the arrow. */
+
+.btn {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 56px;
+  padding-inline: 1.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  background-image: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: var(--btn-fill, var(--color-accent));
+  transform: scale(0);
+  transform-origin: left center;
+  transition: transform 0.4s var(--ease-bounce);
+}
+
+.btn:hover::before {
+  transform: scale(1);
+}
+
+.btn-primary {
+  --btn-fill: var(--color-accent-strong);
+  --btn-text: #fff;
+  background-color: var(--btn-fill);
+  color: var(--btn-text);
+}
+
+.btn-primary:hover {
+  --btn-fill: var(--color-accent-hover);
+  color: var(--btn-text);
+}
+
+.btn-secondary {
+  --btn-fill: var(--color-elevated);
+  --btn-text: var(--color-ink);
+  border-color: var(--color-hairline);
+}
+
+.btn-secondary:hover {
+  --btn-fill: rgba(53, 56, 70, 0.9);
+  color: var(--color-ink);
+}
+
+.btn-dark {
+  --btn-fill: #08080b;
+  --btn-text: #fff;
+  background-color: #08080b;
+}
+
+.btn-dark:hover {
+  --btn-fill: #000;
+  color: #fff;
+}
+
+.btn-sm {
+  height: 40px;
+  padding-inline: 1rem;
+}
+
+.btn-lg {
+  height: 60px;
+  padding-inline: 1.875rem;
+}
+
+.btn-arrow {
+  transition: transform 0.4s var(--ease-bounce);
+}
+
+.btn:hover .btn-arrow {
+  transform: translateX(4px);
+}
+
+/* ------------------------------------------------------------------ hero -- */
+
+.hero {
+  position: relative;
+  display: flex;
+  min-height: 100svh;
+  align-items: center;
+  padding-block: 9rem 6rem;
+}
+
+.hero-inner {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 82rem;
+  padding-inline: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .hero-inner {
+    padding-inline: 2.5rem;
+  }
+}
+
+.hero-title {
+  font-size: var(--display-2xl);
+}
+
+.hero-lede {
+  margin-top: 2rem;
+  max-width: 36rem;
+  font-size: var(--body-lg);
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+  color: var(--color-muted);
+}
+
+.hero-actions {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hero-stats {
+  margin-top: 4rem;
+  padding-top: 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3rem;
+  border-top: 1px solid var(--color-hairline);
+  max-width: 38rem;
+}
+
+.hero-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  color: var(--color-ink);
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  transform: translateX(-50%);
+  color: var(--color-faint);
+}
+
+.scroll-cue-line {
+  display: block;
+  width: 1px;
+  height: 3rem;
+  background: linear-gradient(to bottom, transparent, var(--color-hairline));
+  animation: cue 2.4s var(--ease) infinite;
+}
+
+@keyframes cue {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+  }
+  50% {
+    transform: scaleY(1);
+    transform-origin: top;
+  }
+  51% {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+  100% {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+}
+
+/* ----------------------------------------------------------------- split -- */
+/* Sticky statement on the left, argument scrolling past on the right. */
+
+.split-grid,
+.numbers-grid {
+  display: grid;
+  gap: 2.5rem;
+}
+
+@media (min-width: 1024px) {
+  .split-grid,
+  .numbers-grid {
+    grid-template-columns: 5fr 6fr;
+    gap: 4rem;
+  }
+
+  .split-aside,
+  .numbers-aside {
+    position: sticky;
+    top: 7rem;
+    align-self: start;
+  }
+}
+
+.split-title {
+  font-size: var(--display-lg);
+  max-width: 12ch;
+}
+
+.split-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding-top: 0.5rem;
+}
+
+/* ----------------------------------------------------------------- tiles -- */
+/* Stacked full-width panels that parallax past one another, alternating sides.
+   The weight shift is the whole reason this reads as a timeline. */
+
+/* A pinned panel is only one viewport tall, so the timeline reads as a grid
+   rather than a single tall column. Alternating alignment is kept - it is the
+   weight shift that makes this feel like a timeline instead of a table. */
+
+.tile-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.75rem, 1.6vw, 1.25rem);
+  margin-top: 0;
+}
+
+@media (min-width: 760px) {
+  .tile-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  position: relative;
+  width: 100%;
+  padding: clamp(1.25rem, 1.9vw, 1.75rem);
+  border-radius: var(--r-md);
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-hairline);
+  transition:
+    background-color 0.5s var(--ease),
+    border-color 0.5s var(--ease);
+}
+
+@media (min-width: 900px) {
+  .tile-left {
+    margin-right: auto;
+  }
+
+  .tile-right {
+    margin-left: auto;
+  }
+}
+
+.tile.is-active {
+  background-color: rgba(0, 0, 0, 0.72);
+  border-color: var(--color-accent);
+}
+
+.tile-index {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-accent);
+}
+
+.tile-title {
+  margin-top: 0.875rem;
+  font-size: clamp(1.5rem, 1rem + 1.8vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  color: var(--color-ink);
+}
+
+.tile .body-md {
+  margin-top: 1rem;
+  max-width: 40rem;
+}
+
+.tile-meta {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding-inline: 0.875rem;
+  border-radius: 9999px;
+  background-color: var(--color-elevated);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-muted);
+}
+
+/* ----------------------------------------------------------------- cards -- */
+/* Flat, borderless, no shadow. Fill and radius do all the separating. */
+
+/* Six cards in three columns is two rows; the vertical margin is measured
+   against viewport height because the whole panel has to fit inside one. */
+
+.cards {
+  margin-top: clamp(1rem, 2.5vh, 2rem);
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: clamp(1.1rem, 1.9vh, 1.5rem);
+  border-radius: var(--r-md);
+  background-color: var(--color-surface);
+  transition: background-color 0.4s var(--ease);
+}
+
+.card:hover {
+  background-color: var(--color-elevated);
+}
+
+.card-chip {
+  display: grid;
+  place-items: center;
+  width: clamp(2.5rem, 5.5vh, 3.75rem);
+  height: clamp(2.5rem, 5.5vh, 3.75rem);
+  border-radius: 9999px;
+  background-color: var(--color-ink);
+  color: #08080b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.card-title {
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--color-ink);
+}
+
+/* ---------------------------------------------------------------- numbers -- */
+/* Weight drops to 400 and size goes to ~10vw for the numerals. It is the only
+   place on the page where the weight moves off 500, which is exactly what
+   makes it land. */
+
+.numbers-title {
+  max-width: 14ch;
+}
+
+.numbers-note {
+  margin-top: 1.75rem;
+  max-width: 34rem;
+}
+
+/* Two columns so four metrics are two rows rather than a 1000px column -
+   the panel they live in has to fit inside a single viewport to pin. */
+
+.numbers-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@media (min-width: 760px) {
+  .numbers-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.metric-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-height: min(15rem, 26svh);
+  padding: clamp(1rem, 2vh, 1.5rem);
+  border-radius: var(--r-lg);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-hairline);
+  transition: border-color 0.4s var(--ease);
+}
+
+.metric-card:hover {
+  border-color: var(--color-accent);
+}
+
+.metric-value {
+  font-size: clamp(2.5rem, 6.5svh, 8.5rem);
+  font-weight: 400;
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  color: var(--color-ink);
+  margin-top: auto;
+}
+
+.metric-label {
+  color: var(--color-muted);
+}
+
+/* The icon inverts the card, same as the reference. */
+.metric-chip {
+  position: absolute;
+  top: clamp(0.75rem, 1.8vh, 2rem);
+  right: clamp(0.75rem, 1.8vh, 2rem);
+  display: grid;
+  place-items: center;
+  width: clamp(2.25rem, 5vh, 3.75rem);
+  height: clamp(2.25rem, 5vh, 3.75rem);
+  border-radius: 9999px;
+  background-color: var(--color-ink);
+  color: #08080b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- scribble -- */
+/* A hand-drawn marker stroke under the emphasised word. A wave path is used as
+   a mask so only the stroke shows, and it wipes in left to right. */
+
+.scribble {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.scribble::after {
+  content: "";
+  position: absolute;
+  left: -3%;
+  right: -3%;
+  bottom: 0.02em;
+  height: 0.28em;
+  background-color: var(--color-accent);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 24' preserveAspectRatio='none'%3E%3Cpath d='M2 16c14-9 26 4 40-2s12-11 26-5 16 10 30 3 22-9 36-2 20 7 34 1 18-6 30 1' fill='none' stroke='%23fff' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 24' preserveAspectRatio='none'%3E%3Cpath d='M2 16c14-9 26 4 40-2s12-11 26-5 16 10 30 3 22-9 36-2 20 7 34 1 18-6 30 1' fill='none' stroke='%23fff' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.scribble.is-inview::after {
+  animation: scribble-wipe 0.9s var(--ease) 0.25s forwards;
+}
+
+@keyframes scribble-wipe {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ----------------------------------------------------------------- rails -- */
+
+.rails-title {
+  max-width: 16ch;
+}
+
+.rails-lede {
+  margin-top: 1.5rem;
+  max-width: 38rem;
+}
+
+.rail {
+  margin-top: 0.75rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.rail-track {
+  display: flex;
+  width: max-content;
+  animation: rail-slide var(--rail-duration, 38s) linear infinite;
+}
+
+.rail-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.rail-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: 9999px;
+  background-color: var(--color-elevated);
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+@keyframes rail-slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.captions {
+  margin-top: 2.5rem;
+  display: grid;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .captions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.caption {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-faint);
+}
+
+/* ------------------------------------------------------------------ close -- */
+/* A saturated band, rounded at the bottom, exactly like the reference CTA. */
+
+.close {
+  padding-top: clamp(2rem, 4vw, 3rem);
+}
+
+.close-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  padding: clamp(4rem, 9vw, 7.5rem) 1.5rem;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background-color: var(--color-accent-strong);
+  background-image: radial-gradient(ellipse 80% 100% at 50% 0%, rgba(91, 104, 255, 0.55), transparent 70%);
+}
+
+.close-band .kicker {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.close-title {
+  font-size: clamp(2.5rem, 1.2rem + 6vw, 6rem);
+  color: #fff;
+  max-width: 16ch;
+}
+
+.close-lede {
+  max-width: 34rem;
+  font-size: var(--body-lg);
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.close-band .btn {
+  margin-top: 1rem;
+}
+
+/* ----------------------------------------------------------------- footer -- */
+
+.landing-footer {
+  background-color: var(--color-accent-strong);
+  padding-bottom: 1.5rem;
+}
+
+.footer-block {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 82rem;
+  padding: clamp(2.5rem, 5vw, 4rem) 1.5rem;
+  border-radius: var(--r-lg);
+  background-color: var(--color-surface);
+  display: grid;
+  gap: 2.5rem;
+}
+
+@media (min-width: 900px) {
+  .footer-block {
+    grid-template-columns: 2fr 1fr 1fr;
+    padding-inline: 2.5rem;
+  }
+}
+
+.footer-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--color-accent);
+}
+
+.footer-pitch {
+  font-size: var(--body-lg);
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+  color: var(--color-muted);
+  max-width: 32rem;
+}
+
+.footer-head {
+  margin-bottom: 0.5rem;
+  color: var(--color-ink);
+}
+
+.footer-body {
+  color: var(--color-faint);
+  line-height: 1.6;
+}
+
+/* ----------------------------------------------------------------- motion -- */
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue-line,
+  .rail-track {
+    animation: none;
+  }
+
+  .scribble::after {
+    transform: scaleX(1);
+  }
+}

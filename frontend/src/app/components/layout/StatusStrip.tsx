@@ -9,7 +9,9 @@ const TICKER = [
   "Time-regressor MAE 38 min",
 ];
 
-export function StatusStrip() {
+import { cn } from "../../lib/cn";
+
+export function StatusStrip({ className }: { className?: string } = {}) {
   const run = (
     <div className="flex shrink-0 items-center">
       {TICKER.map((item) => (
@@ -23,7 +25,7 @@ export function StatusStrip() {
 
   return (
     <div
-      className="relative overflow-hidden border-b border-hairline bg-abyss"
+      className={cn("relative overflow-hidden border-y border-hairline bg-abyss", className)}
       aria-hidden="true"
     >
       <div className="marquee-track py-3">

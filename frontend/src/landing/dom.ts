@@ -1,0 +1,63 @@
+/** Minimal hyperscript. A marketing page does not justify shipping React. */
+
+type Attrs = Record<string, string | number | boolean | undefined>;
+type Child = Node | string | null | undefined | false;
+
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Attrs = {},
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tag);
+
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === false) continue;
+    el.setAttribute(key, value === true ? "" : String(value));
+  }
+
+  for (const child of children) {
+    if (child === null || child === undefined || child === false) continue;
+    el.append(typeof child === "string" ? document.createTextNode(child) : child);
+  }
+
+  return el;
+}
+
+/** Namespaced SVG, since createElement would emit an unknown HTML element. */
+export function svg(tag: string, attrs: Attrs = {}, ...children: Child[]): SVGElement {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === false) continue;
+    el.setAttribute(key, String(value));
+  }
+  for (const child of children) {
+    if (child === null || child === undefined || child === false) continue;
+    el.append(typeof child === "string" ? document.createTextNode(child) : child);
+  }
+  return el;
+}
+
+export function wordmark(size: number): SVGElement {
+  return svg(
+    "svg",
+    { viewBox: "0 0 32 32", width: size, height: size, "aria-hidden": "true" },
+    svg("circle", { cx: 16, cy: 16, r: 7, fill: "none", stroke: "currentColor", "stroke-width": 1.5 }),
+    svg("circle", { cx: 16, cy: 16, r: 2, fill: "currentColor" }),
+    svg("path", {
+      d: "M16 1v6M16 25v6M1 16h6M25 16h6",
+      stroke: "currentColor",
+      "stroke-width": 1.5,
+      "stroke-linecap": "square",
+    }),
+  );
+}
+
+/** Wraps every word in its own span so the intro can stagger them in. */
+export function splitWords(text: string): DocumentFragment {
+  const frag = document.createDocumentFragment();
+  text.split(" ").forEach((word, i) => {
+    if (i > 0) frag.append(" ");
+    frag.append(h("span", { class: "split-word" }, word));
+  });
+  return frag;
+}

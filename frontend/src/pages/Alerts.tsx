@@ -156,7 +156,7 @@ export function Alerts() {
                           <div className="flex items-center gap-2">
                             <span
                               className={cn(
-                                "h-5 w-0.5 shrink-0",
+                                "h-5 w-0.5 shrink-0 rounded-full",
                                 isNew ? "bg-critical" : "bg-hairline",
                               )}
                             />
@@ -180,7 +180,7 @@ export function Alerts() {
                           <div className="flex items-center gap-3">
                             <span
                               className={cn(
-                                "h-2.5 w-[2px]",
+                                "h-2.5 w-[2px] rounded-full",
                                 level === "LOW"
                                   ? "bg-stable"
                                   : level === "MEDIUM"

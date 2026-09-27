@@ -41,14 +41,14 @@ export function RiskBadge({ level, score, className }: RiskBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 border px-2 py-1",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1",
         tone.border,
         tone.bg,
         tone.text,
         className,
       )}
     >
-      <span className={cn("h-2.5 w-[2px]", tone.bar)} />
+      <span className={cn("h-2.5 w-[2px] rounded-full", tone.bar)} />
       <span className="label-caps">{level}</span>
       {score !== undefined && (
         <span className="telemetry opacity-60">{(score * 100).toFixed(0)}%</span>

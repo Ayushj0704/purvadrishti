@@ -19,7 +19,7 @@ const SIZES: Record<Size, string> = {
 };
 
 const BASE =
-  "label-caps inline-flex items-center justify-center gap-2 border transition-all duration-200 disabled:pointer-events-none disabled:opacity-40";
+  "label-caps inline-flex items-center justify-center gap-2 rounded-md border transition-all duration-200 disabled:pointer-events-none disabled:opacity-40";
 
 function classes(variant: Variant, size: Size, className?: string) {
   return cn(BASE, VARIANTS[variant], SIZES[size], className);

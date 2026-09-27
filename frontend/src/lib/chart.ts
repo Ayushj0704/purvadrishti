@@ -23,7 +23,7 @@ export const RISK_COLOR = {
 export const TOOLTIP_STYLE = {
   background: "rgba(8,8,10,0.96)",
   border: "1px solid #202028",
-  borderRadius: 0,
+  borderRadius: 10,
   fontSize: 11,
   fontFamily: CHART.mono,
 } as const;

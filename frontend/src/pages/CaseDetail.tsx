@@ -152,7 +152,7 @@ export function CaseDetail() {
 
       {/* Case facts */}
       <Reveal>
-        <div className="grid grid-cols-2 gap-px border border-hairline bg-hairline lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-hairline bg-hairline lg:grid-cols-4">
           {facts.map((fact, i) => (
             <div key={fact.label} className="flex flex-col gap-3 bg-surface p-5">
               <span className="label-caps text-faint">

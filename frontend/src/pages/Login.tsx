@@ -54,7 +54,7 @@ export function Login() {
             <Wordmark className="size-8" />
             <div className="flex flex-col leading-none">
               <span className="text-base font-semibold tracking-[-0.03em] text-ink">
-                Purvadrishti
+                PurvaDrishti
               </span>
               <span className="eyebrow mt-1.5">Cash-out intelligence</span>
             </div>
@@ -70,13 +70,13 @@ export function Login() {
               <span className="text-accent">We read it.</span>
             </h1>
             <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
-              Fraud funds surface as cash within hours, somewhere in India. Purvadrishti turns a
+              Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns a
               victim complaint into a ranked list of probable ATMs and a predicted withdrawal
               window — before the cash is gone.
             </p>
           </div>
 
-          <ul className="grid gap-px border border-hairline bg-hairline sm:grid-cols-3">
+          <ul className="grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-3">
             {PILLARS.map((pillar) => (
               <li key={pillar.index} className="flex flex-col gap-3 bg-void p-5">
                 <span className="label-caps tnum text-accent">{pillar.index}</span>
@@ -91,7 +91,7 @@ export function Login() {
 
         {/* Auth */}
         <section className="flex flex-col justify-center gap-10 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
-          <div className="flex items-start gap-3 border border-elevated-risk/25 bg-elevated-risk/[0.06] p-4">
+          <div className="flex items-start gap-3 rounded-lg border border-elevated-risk/25 bg-elevated-risk/[0.06] p-4">
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
             <p className="text-xs leading-relaxed text-muted">
               Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
@@ -134,7 +134,7 @@ export function Login() {
             {error && (
               <p
                 role="alert"
-                className="border border-critical/40 bg-critical/[0.07] px-4 py-3 text-xs text-critical"
+                className="rounded-lg border border-critical/40 bg-critical/[0.07] px-4 py-3 text-xs text-critical"
               >
                 {error}
               </p>

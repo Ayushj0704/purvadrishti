@@ -46,7 +46,7 @@ export function RecallAtKChart({ data, crossStateRecall, precisionAt5 }: Props) 
                 itemStyle={{ color: "#f4f4f5" }}
                 formatter={(value) => [`${Number(value).toFixed(1)}%`, "Recall"]}
               />
-              <Bar dataKey="recall" radius={0} maxBarSize={64}>
+              <Bar dataKey="recall" radius={[6, 6, 0, 0]} maxBarSize={64}>
                 {data.map((d, i) => (
                   <Cell key={d.k} fill={i === 2 ? RISK_COLOR.accent : CHART.muted} />
                 ))}

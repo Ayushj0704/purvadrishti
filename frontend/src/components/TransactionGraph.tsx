@@ -10,7 +10,7 @@ import type { Edge, Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
 const NODE_BASE =
-  "flex min-w-[9.5rem] flex-col gap-1 border px-3.5 py-3 text-center backdrop-blur-sm";
+  "flex min-w-[9.5rem] flex-col gap-1 rounded-lg border px-3.5 py-3 text-center backdrop-blur-sm";
 
 const initialNodes: Node[] = [
   {
@@ -64,7 +64,7 @@ export function TransactionGraph() {
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   return (
-    <div className="border border-hairline bg-abyss">
+    <div className="overflow-hidden rounded-xl border border-hairline bg-abyss">
       <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
         <span className="label-caps text-muted">Money flow topology</span>
         <span className="telemetry text-faint">
@@ -86,7 +86,7 @@ export function TransactionGraph() {
         >
           <Controls
             showInteractive={false}
-            className="!overflow-hidden !rounded-none !border !border-hairline !bg-void !shadow-none [&>button]:!border-hairline [&>button]:!bg-void [&>button]:!fill-muted [&>button:hover]:!bg-elevated"
+            className="!overflow-hidden !rounded-lg !border !border-hairline !bg-void !shadow-none [&>button]:!border-hairline [&>button]:!bg-void [&>button]:!fill-muted [&>button:hover]:!bg-elevated"
           />
           <MiniMap
             pannable
@@ -98,7 +98,7 @@ export function TransactionGraph() {
             }}
             maskColor="rgba(8, 8, 10, 0.75)"
             className="!border !border-hairline !bg-void"
-            style={{ borderRadius: 0 }}
+            style={{ borderRadius: 12 }}
           />
           <Background color="#1c1c24" gap={22} size={1} />
         </ReactFlow>

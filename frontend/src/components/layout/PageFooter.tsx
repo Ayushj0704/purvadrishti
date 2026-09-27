@@ -7,7 +7,7 @@ export function PageFooter() {
         <div className="flex items-center gap-3 text-faint">
           <Wordmark className="size-5" />
           <div className="flex flex-col leading-none">
-            <span className="text-xs font-medium tracking-[-0.02em] text-muted">Purvadrishti</span>
+            <span className="text-xs font-medium tracking-[-0.02em] text-muted">PurvaDrishti</span>
             <span className="eyebrow mt-1.5">SIH 26 · Predictive cash-out intelligence</span>
           </div>
         </div>

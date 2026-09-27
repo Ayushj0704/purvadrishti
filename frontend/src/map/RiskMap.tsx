@@ -75,18 +75,18 @@ export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskM
       </Map>
 
       <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col items-end gap-1">
-        <div className="flex items-center gap-2 border border-hairline bg-void/85 px-2.5 py-1.5 backdrop-blur">
+        <div className="flex items-center gap-2 rounded-lg border border-hairline bg-void/85 px-2.5 py-1.5 backdrop-blur">
           <span className="micro text-faint">Legend</span>
           <span className="flex items-center gap-1.5">
-            <span className="size-2 bg-critical" />
+            <span className="size-2 rounded-full bg-critical" />
             <span className="micro text-faint">High</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-2 bg-elevated-risk" />
+            <span className="size-2 rounded-full bg-elevated-risk" />
             <span className="micro text-faint">Med</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-2 bg-stable" />
+            <span className="size-2 rounded-full bg-stable" />
             <span className="micro text-faint">Low</span>
           </span>
         </div>

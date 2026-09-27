@@ -22,7 +22,7 @@ export function TopNav() {
           <Wordmark />
           <span className="flex flex-col leading-none">
             <span className="text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink">
-              Purvadrishti
+              PurvaDrishti
             </span>
             <span className="eyebrow mt-1">Cash-out intelligence</span>
           </span>
@@ -57,7 +57,7 @@ export function TopNav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <div className="label-caps hidden items-center gap-2 border border-hairline px-3 py-2 text-muted sm:flex">
+          <div className="label-caps hidden items-center gap-2 rounded-full border border-hairline px-3 py-2 text-muted sm:flex">
             <span className="relative inline-flex size-1.5">
               <span className="absolute inset-0 rounded-full bg-stable animate-ping-slow" />
               <span className="relative size-1.5 rounded-full bg-stable" />
@@ -66,7 +66,7 @@ export function TopNav() {
           </div>
           <button
             onClick={handleSignOut}
-            className="label-caps border border-hairline px-3 py-2 text-muted transition-colors duration-200 hover:border-[#2e2e3a] hover:text-ink"
+            className="label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors duration-200 hover:border-[#2e2e3a] hover:bg-white/[0.03] hover:text-ink"
           >
             Sign out
           </button>

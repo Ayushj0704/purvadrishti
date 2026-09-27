@@ -19,7 +19,7 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   const positive = d.contribution > 0;
 
   return (
-    <div className="max-w-[18rem] border border-hairline bg-void/95 p-3.5 backdrop-blur">
+    <div className="max-w-[18rem] rounded-lg border border-hairline bg-void/95 p-3.5 backdrop-blur">
       <p className="text-[0.8125rem] font-medium tracking-[-0.01em] text-ink">{d.feature_name}</p>
       <p className="mt-1.5 text-xs leading-relaxed text-faint">{d.description}</p>
       <p
@@ -70,7 +70,7 @@ export function ShapContributionChart({ data }: { data: ShapFeature[]; isLoading
               axisLine={false}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-            <Bar dataKey="contribution" radius={0} maxBarSize={18}>
+            <Bar dataKey="contribution" radius={[0, 6, 6, 0]} maxBarSize={18}>
               {sorted.map((f, i) => (
                 <Cell key={i} fill={f.contribution > 0 ? RISK_COLOR.negative : RISK_COLOR.positive} />
               ))}
@@ -81,11 +81,11 @@ export function ShapContributionChart({ data }: { data: ShapFeature[]; isLoading
 
       <div className="mt-5 flex items-center gap-6 border-t border-hairline pt-4">
         <span className="flex items-center gap-2">
-          <span className="size-2 bg-critical" />
+          <span className="size-2 rounded-full bg-critical" />
           <span className="label-caps text-faint">Raises risk</span>
         </span>
         <span className="flex items-center gap-2">
-          <span className="size-2 bg-stable" />
+          <span className="size-2 rounded-full bg-stable" />
           <span className="label-caps text-faint">Lowers risk</span>
         </span>
       </div>

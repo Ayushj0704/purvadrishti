@@ -15,7 +15,7 @@ export function AlertRow({ alert }: { alert: Alert }) {
       className="group grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-hairline-soft px-5 py-4 transition-colors duration-200 last:border-b-0 hover:bg-white/[0.03]"
     >
       <div className="flex flex-col items-start gap-2">
-        <span className={cn("h-6 w-0.5", isNew ? "bg-critical" : "bg-hairline")} />
+        <span className={cn("h-6 w-0.5 rounded-full", isNew ? "bg-critical" : "bg-hairline")} />
         <span className="value text-faint">{formatTime(alert.created_at)}</span>
       </div>
 

@@ -57,7 +57,7 @@ export function DemoSimulator() {
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3 sm:bottom-7 sm:right-7">
       {isRunning && stepIndex >= 0 && (
-        <div className="w-72 animate-rise border border-hairline bg-void/95 backdrop-blur-xl">
+        <div className="w-72 animate-rise overflow-hidden rounded-xl border border-hairline bg-void/95 backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
             <span className="label-caps text-muted">Sequence</span>
             <span className="telemetry text-accent">
@@ -105,7 +105,7 @@ export function DemoSimulator() {
       <button
         onClick={isRunning ? stop : start}
         className={cn(
-          "label-caps inline-flex items-center gap-2.5 border px-4 py-3 transition-all duration-200",
+          "label-caps inline-flex items-center gap-2.5 rounded-full border px-4 py-3 transition-all duration-200",
           isRunning
             ? "border-critical/50 bg-critical/10 text-critical hover:bg-critical/20"
             : "border-hairline bg-void/90 text-muted backdrop-blur hover:border-accent hover:text-ink",

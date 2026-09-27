@@ -43,7 +43,7 @@ export function SectionHeader({
     <div className={cn("flex flex-col gap-4", className)}>
       <div className="flex items-center gap-3">
         {index && (
-          <span className="label-caps tnum border border-hairline px-1.5 py-1 text-accent">
+          <span className="label-caps tnum rounded-md border border-hairline px-2 py-1 text-accent">
             {index}
           </span>
         )}

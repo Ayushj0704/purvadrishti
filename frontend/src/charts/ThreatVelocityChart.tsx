@@ -69,11 +69,11 @@ export function ThreatVelocityChart({ data, isLoading }: { data: ThreatData[]; i
 
       <div className="mt-5 flex flex-wrap items-center gap-6 border-t border-hairline pt-4">
         <span className="flex items-center gap-2">
-          <span className="h-px w-5 bg-critical" />
+          <span className="h-1 w-5 rounded-full bg-critical" />
           <span className="label-caps text-faint">New complaints</span>
         </span>
         <span className="flex items-center gap-2">
-          <span className="h-px w-5 bg-accent" />
+          <span className="h-1 w-5 rounded-full bg-accent" />
           <span className="label-caps text-faint">Predictions generated</span>
         </span>
       </div>

@@ -92,13 +92,13 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
   const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULTS);
 
   return (
-    <div className="border border-hairline">
+    <div className="panel">
       <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
         <span className="label-caps text-muted">Query parameters</span>
         <button
           onClick={reset}
           disabled={!isFiltered}
-          className="text-[0.6875rem] font-medium text-faint transition-colors hover:text-accent disabled:pointer-events-none disabled:opacity-40"
+          className="rounded-md px-2 py-1 text-[0.6875rem] font-medium text-faint transition-colors hover:bg-white/[0.04] hover:text-accent disabled:pointer-events-none disabled:opacity-40"
         >
           Reset
         </button>
@@ -109,7 +109,7 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
           <label key={group.key} className="flex flex-col gap-2 bg-surface p-4">
             <span className="label-caps text-faint">{group.label}</span>
             <select
-              className="field cursor-pointer py-2"
+              className="field select py-2"
               value={filters[group.key]}
               onChange={(e) => update(group.key, e.target.value)}
             >

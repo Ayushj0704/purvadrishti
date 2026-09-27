@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@theme {
+  --font-display: 'Inter', system-ui;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --color-brand: #1A2FFB;
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: #E6E9F4;
+    color: #000000;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+  .dark body {
+    background-color: #0B0B12;
+    color: #F0F1FA;
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #f8f8f8; }
+  .dark ::-webkit-scrollbar-track { background: #0B0B12; }
+  ::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 2px; }
+  .dark ::-webkit-scrollbar-thumb { background: #333333; }
+  ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
+  .dark ::-webkit-scrollbar-thumb:hover { background: #555555; }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-xl;
+  }
+  .breadcrumb-pill {
+    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full px-4 py-2;
+  }
+  .nav-pill {
+    @apply bg-white/95 dark:bg-[#13131F]/90 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-full;
+  }
+}

@@ -17,7 +17,7 @@ from app.geo.spatial import haversine_m
 
 MODEL_DIR = Path(__file__).parent.parent / "app" / "ml" / "models"
 MODEL_NAME = "cashout_xgb"
-MODEL_VERSION = "0.4.0"
+MODEL_VERSION = "0.5.0"
 HORIZONS = [30, 60, 240, 720]
 
 
@@ -202,6 +202,28 @@ def main():
         for k in ("val_pr_auc", "test_pr_auc", "test_roc_auc",
                   "test_top5_recall", "test_top1_recall"):
             out[k] = out["horizons"]["60"][k]
+    # Time regressor: minutes-to-cashout on rows where it happened (<=720).
+    # Answers WHEN, not just whether. Same time split, MAE evaluated.
+    from xgboost import XGBRegressor
+    from sklearn.metrics import mean_absolute_error
+    tmin = np.array([min(t) if t else None for t in truth], dtype=object)
+    has = np.array([v is not None and v <= 720 for v in tmin])
+    yr = np.array([min(float(v), 720.0) for v in tmin[has]])
+    Xr = X[has]
+    gr = g[has]
+    trr = np.array([i for i, c in enumerate(gr) if c in tr])
+    var = np.array([i for i, c in enumerate(gr) if c in va])
+    ter = np.array([i for i, c in enumerate(gr) if c in te])
+    reg = XGBRegressor(max_depth=5, n_estimators=200, learning_rate=0.08,
+                       subsample=0.8, n_jobs=4)
+    reg.fit(Xr[trr], yr[trr])
+    pv_r, pt_r = reg.predict(Xr[var]), reg.predict(Xr[ter])
+    tm = {"n": int(has.sum()),
+          "val_mae_min": round(float(mean_absolute_error(yr[var], pv_r)), 1),
+          "test_mae_min": round(float(mean_absolute_error(yr[ter], pt_r)), 1)}
+    print("time model:", json.dumps(tm))
+    reg.save_model(str(MODEL_DIR / "cashout_time.json"))
+    out["time_model"] = tm
     with open(MODEL_DIR / "meta.json", "w") as f:
         json.dump(out, f, indent=2)
     print("saved to", MODEL_DIR)

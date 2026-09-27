@@ -1,11 +1,12 @@
-"""Scoring: XGBoost v0.1.0 when artifact present, else heuristic (§53B).
+"""Scoring: XGBoost when artifacts present, else heuristic (§53B).
 Heuristic kept so the API never 500s without a model file.
+Time: dedicated XGBRegressor (minutes-to-cashout); survival-expectation
+fallback when the regressor is absent.
 """
 import os
-import pickle
 from pathlib import Path
 
-MODEL_VERSION = "cashout_xgb:0.2.0"
+MODEL_VERSION = "cashout_xgb:0.5.0"
 MODEL_DIR = Path(__file__).parent / "models"
 HORIZONS = [30, 60, 240, 720]
 WINDOW_LABELS = {30: "next 30 min", 60: "30–60 min",
@@ -13,20 +14,30 @@ WINDOW_LABELS = {30: "next 30 min", 60: "30–60 min",
 # Window bounds in minutes from prediction time T (demonstrates WHEN,
 # not just where — the primary headline per ATM).
 WINDOW_BOUNDS = {30: (0, 30), 60: (30, 60), 240: (60, 240), 720: (240, 720)}
+
+
+def expected_minutes(scores: dict) -> int | None:
+    """Survival fallback: E[T∧720] from horizon probs. None if flat."""
+    ps = [float(scores.get(h, 0.0)) for h in HORIZONS]
+    if max(ps) < 0.05:
+        return None
+    mono, prev = [], 0.0
+    for p in ps:  # enforce monotone cumulative (clip inversions)
+        prev = max(prev, min(max(p, 0.0), 0.99))
+        mono.append(prev)
+    p30, p60, p240, _p720 = mono
+    exp_t = 30 * 1.0 + 30 * (1 - p30) + 180 * (1 - p60) + 480 * (1 - p240)
+    return int(round(min(max(exp_t, 0), 720)))
+
+
 _BOOSTERS: dict = {}
-_CAL = _META = None
+_TIME_MODEL = None
+_META = None
 _LOADED = False
 
 
-def _resolve(path_str):
-    p = Path(path_str)
-    if p.exists():
-        return p
-    return MODEL_DIR / "cashout_xgb.json"
-
-
 def _load():
-    global _CAL, _META, _LOADED
+    global _TIME_MODEL, _META, _LOADED
     if _LOADED:
         return
     _LOADED = True
@@ -44,12 +55,18 @@ def _load():
                 b = Booster()
                 b.load_model(str(fp))
                 _BOOSTERS[h] = b
+        tfp = d / "cashout_time.json"
+        if tfp.exists():
+            t = Booster()
+            t.load_model(str(tfp))
+            _TIME_MODEL = t
         mp2 = d / "meta.json"
         if mp2.exists():
             import json
             _META = json.load(open(mp2))
     except Exception:
         _BOOSTERS.clear()
+        _TIME_MODEL = None
 
 
 def model_available() -> bool:
@@ -110,6 +127,7 @@ def score_multi(db, case, cands, ref_lat=None, ref_lon=None):
             out.append({"scores": {h: s for h in HORIZONS}, "reasons": r,
                         "label": "heuristic-fallback",
                         "predicted_window": "next 60 min (heuristic)",
+                        "expected_min": None,
                         "basis": "geo-only (no model loaded)"})
         return out
     import numpy as np
@@ -122,6 +140,11 @@ def score_multi(db, case, cands, ref_lat=None, ref_lon=None):
     probs = {h: np.clip(_BOOSTERS[h].predict(dmat), 0.01, 0.99)
              for h in HORIZONS if h in _BOOSTERS}
     b60 = _BOOSTERS[60]
+    # Dedicated time regressor (minutes-to-cashout); survival fallback.
+    if _TIME_MODEL is not None:
+        eta = np.clip(_TIME_MODEL.predict(dmat), 5, 720)
+    else:
+        eta = None
     out = []
     for i, (a, (_, f)) in enumerate(zip(atms, pairs)):
         scores = {h: round(float(probs[h][i]), 3) for h in probs}
@@ -132,11 +155,13 @@ def score_multi(db, case, cands, ref_lat=None, ref_lon=None):
                 if scores[h] >= hi:
                     window, bounds = WINDOW_LABELS[h], WINDOW_BOUNDS[h]
                     break
+        exp_min = int(round(float(eta[i]))) if eta is not None else expected_minutes(scores)
         # basis is refined by the endpoint with live burst heat; default here:
         out.append({"scores": scores,
                     "reasons": top_reasons(b60, np.array([f[k] for k in FEATURES]), f),
                     "label": model_label(),
                     "predicted_window": window,
                     "window_bounds_min": bounds,
+                    "expected_min": exp_min,
                     "basis": "geo-only (no prior track)"})
     return out

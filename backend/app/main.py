@@ -321,11 +321,13 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
             expect = [t0.strftime("%H:%M"), t1.strftime("%H:%M")]
         else:
             expect = None  # beyond +12h / low conviction — no clock claim
+        exp_min = m.get("expected_min")
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
                       "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
                       "expected_between": expect,
+                      "expected_min": exp_min,
                       "basis": m["basis"],
                       "heat": h,
                       "best_bet": i == 0,
@@ -358,11 +360,13 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
             fire = (match, "burst")
     if fire:
         (s, a, p, r), why = fire
+        exp_min = by_key[(s, a.id)].get("expected_min")
         al = Alert(case_id=c.id, prediction_id=p.id,
                    severity="CRITICAL" if (s >= CRIT_T or why == "burst") else "HIGH",
                    channel=settings.alert_channels,
                    message=f"Predicted cash-out {a.atm_code} score={s} via={why} "
-                           f"heat={heat.get(a.id, {}).get('level')}")
+                           f"heat={heat.get(a.id, {}).get('level')}"
+                           + (f" eta~{exp_min}min" if exp_min else ""))
         db.add(al); db.commit(); db.refresh(al)
         from app.notifications.providers import fan_out
         window = by_key[(s, a.id)]["predicted_window"]

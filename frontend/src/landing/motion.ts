@@ -46,11 +46,17 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function countUp(el: HTMLElement): void {
-  const target = Number(el.dataset.count ?? 0);
-  const dp = Number(el.dataset.countDp ?? 0);
-  const suffix = el.dataset.countSuffix ?? "";
+/** The number a metric is meant to end on, read from its data attributes. */
+function countTarget(el: HTMLElement): { target: number; dp: number; suffix: string } {
+  return {
+    target: Number(el.dataset.count ?? 0),
+    dp: Number(el.dataset.countDp ?? 0),
+    suffix: el.dataset.countSuffix ?? "",
+  };
+}
 
+function countUp(el: HTMLElement): void {
+  const { target, dp, suffix } = countTarget(el);
   const state = { value: 0 };
   gsap.to(state, {
     value: target,
@@ -62,11 +68,39 @@ function countUp(el: HTMLElement): void {
   });
 }
 
+/**
+ * Put the finished number up with no animation.
+ *
+ * The counting is a scroll trigger, and with reduced motion no triggers are
+ * created at all - so without this the metrics keep whatever they were authored
+ * with, which is no text at all. Someone who has asked for less motion should get
+ * exactly the same figures, just without watching them roll up.
+ */
+function setCountFinal(el: HTMLElement): void {
+  const { target, dp, suffix } = countTarget(el);
+  el.textContent = target.toFixed(dp) + suffix;
+}
+
+function setAllCountsFinal(): void {
+  for (const el of gsap.utils.toArray<HTMLElement>(".metric-value")) setCountFinal(el);
+}
+
 export function initMotion(
   lenis: Lenis | null,
   onProgress: (progress: number) => void,
 ): void {
   if (prefersReducedMotion()) {
+    // The panels are still position: sticky under reduced motion - that is CSS,
+    // and it is not motion the visitor asked to be spared. So the fit decision
+    // still has to be made here: a panel taller than a phone held in portrait
+    // cannot be stuck at top: 0, because its overflow would sit above the fold
+    // with no way to scroll to it.
+    collectStack();
+    applyStackFits();
+    document.fonts?.ready.then(() => {
+      applyStackFits();
+    });
+    setAllCountsFinal();
     revealScribbles();
     onProgress(0);
     return;
@@ -88,6 +122,7 @@ function revealAll(): void {
     clearProps: "all",
   });
   revealScribbles();
+  setAllCountsFinal();
 }
 
 function revealScribbles(): void {
@@ -97,91 +132,184 @@ function revealScribbles(): void {
 }
 
 /**
- * Pin each content section so the next one slides up over it from the bottom.
+ * The stack, and the one measurement that position: sticky breaks.
  *
- * ScrollTrigger's pin is used rather than `position: sticky` for two reasons:
- * the pin hands back a real 0..1 progress to drive the inner motion, and it
- * inserts the scroll runway (pin-spacing) that lets the following panel travel
- * all the way up over the pinned one.
+ * Neither getBoundingClientRect() nor offsetTop will do here, and this is the
+ * single most important thing to get right in the file. Both report where a
+ * sticky element currently *is*, not where it lives in the document: a panel
+ * reads offsetTop 2565 at the top of the page and 8460 once the panels below it
+ * have been pushed to the foot of the viewport, and its rect says top: 0 for the
+ * whole of its hold. Every trigger here is a scroll position, so measuring
+ * against the stuck position means measuring the scroll position against itself -
+ * which is how the anchors end up scrolling to wherever the visitor already is,
+ * and how the tile sequence ends up pinned to one step.
  *
- * It also fixes a problem sticky would have introduced. A pinned element's own
- * box stops moving, so anything inside it reacting to its position against the
- * viewport goes dead - the old tile parallax would have frozen solid the
- * moment its section pinned. Inner motion therefore reads progress from the
- * pin rather than from element positions.
+ * The only trustworthy reading of a stuck element's static position is to take
+ * the stickiness away while it is measured. So the panels are switched to
+ * position: static for the duration of the read and put back afterwards. That is
+ * safe because static is the layout they already have: a sticky element is in
+ * normal flow, so its height, its margins and its position in the flow are all
+ * identical, and only the offset is removed. It happens inside one synchronous
+ * read, before the browser paints, so nothing flickers.
+ */
+let measuring = 0;
+
+function withoutSticky<T>(read: () => T): T {
+  // Already un-stuck by an enclosing measurement - most importantly by
+  // refreshStack(), so one refresh costs one layout pass rather than one per
+  // trigger that asks where something is.
+  if (measuring) return read();
+
+  measuring++;
+  const restore: [HTMLElement, string][] = [];
+  for (const entry of stack) {
+    if (entry.el.classList.contains("is-unpinned")) continue;
+    restore.push([entry.el, entry.el.style.position]);
+    entry.el.style.position = "static";
+  }
+
+  try {
+    return read();
+  } finally {
+    for (const [el, position] of restore) el.style.position = position;
+    measuring--;
+  }
+}
+
+/** An element's static offset from the top of the document, with no stickiness. */
+function docTop(el: HTMLElement): number {
+  return withoutSticky(() => {
+    let y = 0;
+    let node: HTMLElement | null = el;
+    while (node) {
+      y += node.offsetTop;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    return y;
+  });
+}
+
+/**
+ * The scroll position at which `el`'s top sits `fraction` of the way down the
+ * viewport - the numeric form of ScrollTrigger's "top NN%", measured against the
+ * document rather than against the stuck position.
+ */
+function atViewport(el: HTMLElement, fraction: number): () => number {
+  return () => docTop(el) - window.innerHeight * fraction;
+}
+
+/**
+ * Recompute every trigger, with the stack un-stuck for the whole pass.
+ *
+ * ScrollTrigger calls each start/end function while refreshing, so un-sticking
+ * inside docTop() would cost a layout pass per call. Doing it once around the
+ * refresh - and letting the nested measurements short-circuit - keeps it to one.
+ */
+function refreshStack(): void {
+  withoutSticky(() => ScrollTrigger.refresh());
+}
+
+/**
+ * Stack the panels and hand each one a progress value for its inner motion.
+ *
+ * The panels themselves are held in place by CSS (position: sticky plus a
+ * --stack-dwell margin); nothing here positions them. What this does is measure
+ * each panel to decide whether it can be stuck at all, and give the pipeline a
+ * real 0..1 to drive its tiles with.
+ *
+ * The progress window is the panel's hold (see makeStackProgress): the panel is
+ * locked and fully readable for its whole duration, and the window closes at the
+ * moment the next panel starts to cover it.
  */
 function setupStack(lenis: Lenis | null): void {
+  collectStack();
+  for (const entry of stack) entry.trigger = makeStackProgress(entry.el);
+  setupAnchors(lenis);
+}
+
+/**
+ * Find the panels and record the paint order.
+ *
+ * Split out of setupStack() because the sticky behaviour is CSS, not JS: with
+ * reduced motion the panels are still stuck, so the fit decision still has to be
+ * made, just without the triggers and tweens.
+ */
+function collectStack(): void {
   const panels = gsap.utils.toArray<HTMLElement>(".stack-panel");
 
   stack.length = 0;
   panels.forEach((el, i) => {
-    // Explicit order, so a pinned panel is never painted under its successor.
-    // Set whether or not it ends up pinned, so the order stays stable.
+    // Explicit order, so a panel is never painted under its successor. Set
+    // whether or not it ends up stuck, so the order stays stable.
     el.style.zIndex = String(10 + i);
     stack.push({ el, trigger: null });
   });
-
-  applyStackFits();
-  setupAnchors(lenis);
 }
 
 const stack: { el: HTMLElement; trigger: ScrollTrigger | null }[] = [];
 
 /**
- * Pin or unpin each panel depending on whether its content fits the viewport.
+ * Stuck or unstuck, depending on whether the panel's content fits the viewport.
  *
  * This has to be re-runnable rather than decided once. A panel taller than the
- * viewport would be pinned with its overflow permanently off-screen, but the
- * first measurement happens before webfonts have landed, when the content is
- * at its smallest and looks like it fits. So the decision is made again from
+ * viewport would be stuck with its overflow permanently above the fold, but the
+ * first measurement happens before webfonts have landed, when the content is at
+ * its smallest and looks like it fits. So the decision is made again from
  * settle() once the layout is trustworthy, and can be reversed either way.
  */
+
 function applyStackFits(): void {
   for (const entry of stack) {
     // offsetHeight, not scrollHeight: scrollHeight counts overflow, and the
     // question is whether the panel's own box exceeds a single screen.
     const fits = entry.el.offsetHeight <= window.innerHeight + 8;
-
-    if (fits && !entry.trigger) {
-      entry.el.classList.remove("is-unpinned");
-      entry.trigger = makeStackTrigger(entry.el);
-    } else if (!fits && entry.trigger) {
-      // kill(true) reverts the pin and removes its spacer, so the panel drops
-      // back to being an ordinary block in flow.
-      entry.trigger.kill(true);
-      entry.trigger = null;
-      entry.el.classList.add("is-unpinned");
-    }
+    entry.el.classList.toggle("is-unpinned", !fits);
   }
 }
 
-function makeStackTrigger(panel: HTMLElement): ScrollTrigger {
+/**
+ * A panel's hold, as a 0..1 progress for its inner motion.
+ *
+ * The hold is the stretch where the panel is locked at the top of the viewport
+ * with nothing else on screen: it opens when the panel lands and closes when the
+ * next panel's top edge reaches the bottom of the viewport, which is exactly
+ * where that panel starts covering this one. Driving the content from this
+ * window rather than from the arrival means the pipeline steps through its tiles
+ * while it is settled and readable, and finishes as the next panel takes over.
+ *
+ * The end is measured off the next sibling's document offset rather than off
+ * --stack-dwell, so it stays right when a panel runs taller than one viewport
+ * (the hold is then whatever is left over) and for the last panel, which is held
+ * open by .close rather than by another panel.
+ */
+function makeStackProgress(panel: HTMLElement): ScrollTrigger {
+  const next = panel.nextElementSibling as HTMLElement | null;
+
   return ScrollTrigger.create({
     id: panel.id || undefined,
     trigger: panel,
-    start: "top top",
-    end: () => `+=${Math.round(dwellFor(panel))}`,
-    pin: true,
-    pinSpacing: true,
-    anticipatePin: 1,
+    // Absolute scroll positions, not keywords - see docTop().
+    start: () => docTop(panel),
+    end: () => {
+      const landed = docTop(panel);
+      if (!next) return landed + window.innerHeight;
+      return Math.max(landed + 1, docTop(next) - window.innerHeight);
+    },
     invalidateOnRefresh: true,
     onUpdate: (self) => onPanelProgress(panel, self.progress),
+    // onUpdate only fires inside the window, so without these the tiles would
+    // keep whichever step was last showing when scrolling back out of range.
+    onLeave: () => onPanelProgress(panel, 1),
+    onLeaveBack: () => onPanelProgress(panel, 0),
   });
 }
 
-/** How long a panel holds still, in pixels of scroll. */
-function dwellFor(panel: HTMLElement): number {
-  const vh = window.innerHeight;
-  const overflow = Math.max(0, panel.scrollHeight - vh);
-  return Math.max(vh * 0.9, overflow + vh * 0.6);
-}
-
 /**
- * Inner motion for a pinned panel, driven by the pin's 0..1 progress.
+ * Inner motion for a panel, driven by its arrival progress.
  *
- * The pipeline walks its four tiles in sequence, so one pinned panel reads as
- * stepping through the stages. Everything else just gets a slow drift - enough
- * to feel alive without competing with the panel sliding over it.
+ * The pipeline walks its four tiles in sequence, so one panel reads as stepping
+ * through the stages. Everything else just gets a slow drift - enough to feel
+ * alive without competing with the panel sliding over it.
  */
 function onPanelProgress(panel: HTMLElement, p: number): void {
   if (panel.classList.contains("tiles")) {
@@ -190,9 +318,15 @@ function onPanelProgress(panel: HTMLElement, p: number): void {
     if (!n) return;
 
     const step = 1 / n;
+    // The active tile is derived from the index rather than from a per-tile
+    // `p < (i + 1) * step` test, because that test is false for the last tile
+    // once p reaches 1 - which left the panel locked with nothing lit, on the
+    // one frame the visitor is actually looking at it. Clamping the index is
+    // what makes the fourth tile hold.
+    const active = Math.min(n - 1, Math.floor(p * n));
     tiles.forEach((tile, i) => {
       const local = Math.min(1, Math.max(0, (p - i * step) / step));
-      tile.classList.toggle("is-active", p >= i * step && p < (i + 1) * step);
+      tile.classList.toggle("is-active", i === active);
       // `x` is safe to drive here: the reveal tween only animates `y`/autoAlpha.
       gsap.set(tile, { x: (local - 0.5) * 18 });
     });
@@ -206,32 +340,92 @@ function onPanelProgress(panel: HTMLElement, p: number): void {
 }
 
 /**
- * Nav links jump to a section's pinned position.
+ * Nav links jump to a section's locked position.
  *
- * Once a panel is pinned its box is position: fixed, so its bounding rect says
- * where it happens to be stuck rather than where the section lives in the
- * document - and Lenis's own anchor handling reads that rect, which would drop
- * the visitor somewhere arbitrary. The pin's `start` is the scroll position
- * where the section is flush with the top, revealed and pinned, so that is the
- * one position worth aiming at.
+ * Lenis's own anchor handling is off (see createLenis) because it reads the
+ * target's bounding rect, and a panel held at top: 0 reports a rect that says it
+ * is already at the top of the viewport - which would drop the visitor nowhere at
+ * all. The scroll position worth aiming at is the panel's static document offset,
+ * which is also exactly where it locks, so docTop() is both correct and immune to
+ * the sticky constraint.
  */
 function setupAnchors(lenis: Lenis | null): void {
   for (const link of gsap.utils.toArray<HTMLAnchorElement>('a[href^="#"]')) {
     const id = link.getAttribute("href")?.slice(1);
     if (!id) continue;
+    const target = document.getElementById(id);
+    if (!target) continue;
 
     link.addEventListener("click", (event) => {
-      const trigger = ScrollTrigger.getById(id);
-      if (!trigger) return;
-
       event.preventDefault();
+      const top = docTop(target);
       if (lenis) {
-        lenis.scrollTo(trigger.start, { duration: 1.5 });
+        lenis.scrollTo(top, { duration: 1.5 });
       } else {
-        window.scrollTo({ top: trigger.start, behavior: "smooth" });
+        window.scrollTo({ top, behavior: "smooth" });
       }
     });
   }
+}
+
+/**
+ * Marks the nav link for whichever section currently owns the screen.
+ *
+ * The console's TopNav gets this from React Router's isActive. There is no router
+ * here, so the same state is read off scroll geometry instead: the last section
+ * whose top has crossed the header is the one being read, and everything below
+ * the fold still has nothing active.
+ *
+ * `top` is the right signal to read, not an IntersectionObserver ratio, because
+ * of the stack. A stuck panel reports top: 0 for its entire hold - which is
+ * precisely the "this section owns the screen" answer - and the ratio would
+ * flicker as a panel slides over its neighbour. It also means the incoming
+ * section takes the highlight at the moment it locks, not while it is still
+ * climbing, which keeps the label from changing twice in one viewport of scroll.
+ * Keyed by href rather than index because the header renders its links twice,
+ * once per breakpoint, and both copies have to light up together.
+ */
+function setupNavSpy(): void {
+  const links = gsap.utils.toArray<HTMLAnchorElement>(".landing-nav a[data-nav-link]");
+  const nav = document.querySelector<HTMLElement>(".landing-nav");
+
+  const sections = new Map<string, HTMLElement>();
+  for (const link of links) {
+    const id = link.getAttribute("href")?.slice(1);
+    if (!id || sections.has(id)) continue;
+    const section = document.getElementById(id);
+    if (section) sections.set(id, section);
+  }
+  if (!sections.size) return;
+
+  let queued = false;
+
+  const update = () => {
+    queued = false;
+    // The header grows a second row below 768px, and that row is part of what
+    // the visitor is reading, so the line moves with it.
+    const line = (nav?.offsetHeight ?? 64) + 8;
+
+    let active: string | null = null;
+    for (const [id, section] of sections) {
+      if (section.getBoundingClientRect().top <= line) active = id;
+    }
+
+    for (const link of links) {
+      const id = link.getAttribute("href")?.slice(1);
+      link.classList.toggle("is-active", !!id && id === active);
+    }
+  };
+
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(update);
+  };
+
+  window.addEventListener("scroll", schedule, { passive: true });
+  window.addEventListener("resize", schedule, { passive: true });
+  update();
 }
 
 function setupMotion(
@@ -263,7 +457,7 @@ function setupMotion(
   // space/PageDown, find-in-page and a load-time #hash all move the document
   // natively, and without this listener ScrollTrigger never hears about them.
   window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", () => ScrollTrigger.refresh(), {
+  window.addEventListener("resize", () => refreshStack(), {
     passive: true,
   });
 
@@ -311,15 +505,6 @@ function setupMotion(
     },
   });
 
-  ScrollTrigger.create({
-    start: "top -80",
-    onUpdate: (self) => {
-      document
-        .querySelector(".landing-nav")
-        ?.classList.toggle("is-scrolled", self.scroll() > 80);
-    },
-  });
-
   // --- Scroll reveals -----------------------------------------------------
   // Grouped per section so the stagger stays local to what is actually on
   // screen, instead of one global batch firing off-screen.
@@ -333,7 +518,10 @@ function setupMotion(
 
     ScrollTrigger.create({
       trigger: section,
-      start: "top 80%",
+      // atViewport() rather than "top 80%": a sticky section's rect does not
+      // describe where it lives in the document, so a keyword start would fire
+      // at an arbitrary moment. See docTop().
+      start: atViewport(section, 0.8),
       once: true,
       onEnter: () => {
         gsap.to(targets, {
@@ -351,11 +539,14 @@ function setupMotion(
   // --- Stacked panels -----------------------------------------------------
   setupStack(lenis);
 
+  // --- Nav active state ---------------------------------------------------
+  setupNavSpy();
+
   // --- Scribble underlines ------------------------------------------------
   for (const scribble of gsap.utils.toArray<HTMLElement>(".scribble")) {
     ScrollTrigger.create({
       trigger: scribble,
-      start: "top 90%",
+      start: atViewport(scribble, 0.9),
       once: true,
       onEnter: () => scribble.classList.add("is-inview"),
     });
@@ -365,7 +556,7 @@ function setupMotion(
   for (const metric of gsap.utils.toArray<HTMLElement>(".metric-value")) {
     ScrollTrigger.create({
       trigger: metric,
-      start: "top 88%",
+      start: atViewport(metric, 0.88),
       once: true,
       onEnter: () => countUp(metric),
     });
@@ -375,12 +566,13 @@ function setupMotion(
   // late, and the hero is sized in svh, which resolves differently depending on
   // when it is first read.
   const settle = () => {
-    // Re-decide pin vs. normal flow first: fonts landing can push a panel past
-    // a viewport, and a panel past a viewport must not be pinned. Creating or
-    // killing a pin shifts everything below it, so refresh comes after.
+    // Re-decide which panels can be stuck first: fonts landing can push a panel
+    // past a viewport, and a panel past a viewport must not be stuck. Toggling
+    // .is-unpinned changes the document height, so refresh comes after.
     applyStackFits();
-    ScrollTrigger.refresh();
+    refreshStack();
     sweepRevealed();
+    sweepCounts();
   };
 
   document.fonts?.ready.then(settle);
@@ -418,6 +610,19 @@ function sweepRevealed(): void {
     }
   }
   revealScribbles();
+  sweepCounts();
+}
+
+/**
+ * The same backstop for the metrics: a count-up trigger that never fires leaves
+ * an empty element, so the figure is simply missing rather than wrong. Filling in
+ * any metric that is still blank costs nothing and cannot overwrite a count that
+ * has already run.
+ */
+function sweepCounts(): void {
+  for (const el of gsap.utils.toArray<HTMLElement>(".metric-value")) {
+    if (!el.textContent?.trim()) setCountFinal(el);
+  }
 }
 
 export function createLenis(): Lenis | null {
@@ -429,9 +634,10 @@ export function createLenis(): Lenis | null {
     smoothWheel: true,
     wheelMultiplier: 1,
     touchMultiplier: 1.5,
-    // Anchor targets are handled in setupAnchors(). Lenis measures a pinned
-    // panel by its fixed position, which is not where the section lives in the
-    // document, so its own anchor handling lands in the wrong place.
+    // Anchor targets are handled in setupAnchors(). Lenis resolves a link by
+    // the target's bounding rect, and a panel held at top: 0 by sticky reports a
+    // rect saying it is already at the top of the viewport, so its own anchor
+    // handling would land in the wrong place.
     anchors: false,
     respectReducedMotion: true,
   });

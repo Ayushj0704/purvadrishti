@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { GlideSelect } from "./ui/GlideSelect";
+
 export interface FilterState {
   timeWindow: string;
   state: string;
@@ -106,20 +108,16 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
 
       <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-3 xl:grid-cols-5">
         {GROUPS.map((group) => (
-          <label key={group.key} className="flex flex-col gap-2 bg-surface p-4">
+          <div key={group.key} className="flex flex-col gap-2 bg-surface p-4">
             <span className="label-caps text-faint">{group.label}</span>
-            <select
-              className="field select py-2"
+            <GlideSelect
+              size="sm"
+              items={group.options.map(([value, label]) => ({ value, label }))}
               value={filters[group.key]}
-              onChange={(e) => update(group.key, e.target.value)}
-            >
-              {group.options.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(value) => update(group.key, value)}
+              ariaLabel={group.label}
+            />
+          </div>
         ))}
       </div>
     </div>

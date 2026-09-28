@@ -6,8 +6,8 @@ import { RiskMap } from "../map/RiskMap";
 import { TopKTable } from "../components/TopKTable";
 import { AlertRow } from "../components/AlertRow";
 import { PageHeader } from "../components/ui/PageHeader";
+import { FolderFloat } from "../components/ui/FolderFloat";
 import { SectionHeader } from "../components/ui/Eyebrow";
-import { MetricRow } from "../components/ui/MetricBlock";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { StatusPill } from "../components/ui/StatusDot";
@@ -50,6 +50,46 @@ const SEED_PREDICTIONS: PredictionCandidate[] = [
     risk_score: 0.61,
     risk_level: "MEDIUM",
     confidence: "LOW",
+  },
+];
+
+interface Metric {
+  index: string;
+  label: string;
+  value: string;
+  unit?: string;
+  delta?: { value: string; direction: "up" | "down" | "flat" };
+  note?: string;
+}
+
+const METRICS: Metric[] = [
+  {
+    index: "A",
+    label: "Active alerts",
+    value: "17",
+    delta: { value: "+3 / 1h", direction: "down" },
+    note: "Requires investigator review",
+  },
+  {
+    index: "B",
+    label: "High-risk zones",
+    value: "8",
+    delta: { value: "−1 / 24h", direction: "up" },
+    note: "H3 resolution 8 cells",
+  },
+  {
+    index: "C",
+    label: "Cases analysed",
+    value: formatCompact(12483),
+    note: "Trailing 30 days",
+  },
+  {
+    index: "D",
+    label: "Avg lead time",
+    value: "18",
+    unit: "min",
+    delta: { value: "Stable", direction: "flat" },
+    note: "Complaint to cash-out",
   },
 ];
 
@@ -100,8 +140,6 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-20">
       <PageHeader
-        index="01"
-        eyebrow="Operations overview"
         title={
           <>
             Predictive
@@ -110,6 +148,8 @@ export function Dashboard() {
           </>
         }
         lede="Live ranking of probable ATM withdrawal locations and predicted windows, derived from complaint trails and scored across every candidate inside the search radius."
+        leadClassName="lg:pl-10 xl:pl-16"
+        titleClassName="text-[clamp(3.25rem,8.5vw,7.5rem)]"
         aside={
           <div className="flex flex-wrap items-center gap-3">
             <StatusPill tone={isLoading ? "accent" : "stable"} pulse={!isLoading}>
@@ -118,42 +158,30 @@ export function Dashboard() {
             <span className="telemetry text-faint">Synced {formatTime(syncedAt)}</span>
           </div>
         }
+        figure={
+          <FolderFloat
+            label="Live metrics"
+            sublabel={`${METRICS.length} metrics`}
+            trigger="click"
+            items={METRICS.map((metric) => ({
+              label: `${metric.index} · ${metric.label} ${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`,
+              value: metric.value,
+            }))}
+            width={282}
+            height={208}
+            radius={19}
+            spread={238}
+            lift={36}
+            pillSize={1.18}
+            folderColor="#15151a"
+            frontColor="#3d46ff"
+            paperColor="#f5f5f5"
+            itemColor="#f5f5f5"
+            itemTextColor="#18181b"
+            labelColor="#f4f4f5"
+          />
+        }
       />
-
-      <Reveal>
-        <MetricRow
-          items={[
-            {
-              index: "A",
-              label: "Active alerts",
-              value: "17",
-              delta: { value: "+3 / 1h", direction: "down" },
-              note: "Requires investigator review",
-            },
-            {
-              index: "B",
-              label: "High-risk zones",
-              value: "8",
-              delta: { value: "−1 / 24h", direction: "up" },
-              note: "H3 resolution 8 cells",
-            },
-            {
-              index: "C",
-              label: "Cases analysed",
-              value: formatCompact(12483),
-              note: "Trailing 30 days",
-            },
-            {
-              index: "D",
-              label: "Avg lead time",
-              value: "18",
-              unit: "min",
-              delta: { value: "Stable", direction: "flat" },
-              note: "Complaint to cash-out",
-            },
-          ]}
-        />
-      </Reveal>
 
       <Reveal>
         <StatusStrip className="-mx-5 sm:-mx-8" />

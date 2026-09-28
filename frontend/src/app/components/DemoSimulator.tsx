@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Square, Check } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { Wordmark } from "./layout/Wordmark";
 import { cn } from "../lib/cn";
-
+import { CallChip } from "./CallChip";
 const DEMO_STEPS = [
   { id: "txn", label: "Fraud transaction observed", delay: 1500 },
   { id: "complaint", label: "Complaint registered", delay: 1500 },
@@ -64,37 +64,19 @@ export function DemoSimulator() {
               {String(stepIndex + 1).padStart(2, "0")} / {String(DEMO_STEPS.length).padStart(2, "0")}
             </span>
           </div>
-          <ol className="flex flex-col">
+          <ol className="flex flex-col gap-1 p-2">
             {DEMO_STEPS.map((step, idx) => {
-              const isPast = idx < stepIndex;
-              const isActive = idx === stepIndex;
+              const status = idx < stepIndex ? "done" : idx === stepIndex ? "running" : "idle";
               return (
-                <li
-                  key={step.id}
-                  className={cn(
-                    "flex items-center gap-3 border-b border-hairline-soft px-4 py-2.5 last:border-b-0 transition-colors",
-                    isActive && "bg-accent/15",
-                  )}
-                >
-                  <span className="flex size-3.5 shrink-0 items-center justify-center">
-                    {isPast ? (
-                      <Check className="size-3 text-stable" />
-                    ) : isActive ? (
-                      <span className="size-1.5 animate-pulse rounded-full bg-accent" />
-                    ) : (
-                      <span className="size-1.5 rounded-full border border-hairline" />
-                    )}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[0.8125rem] leading-snug transition-colors",
-                      isPast && "text-faint",
-                      isActive && "text-ink",
-                      !isPast && !isActive && "text-faint/50",
-                    )}
-                  >
-                    {step.label}
-                  </span>
+                <li key={step.id}>
+                  <CallChip
+                    name={step.label}
+                    argument=""
+                    status={status}
+                    expectedMs={step.delay}
+                    className="w-full"
+                    surfaceColor="transparent"
+                  />
                 </li>
               );
             })}

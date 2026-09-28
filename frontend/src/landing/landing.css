@@ -23,11 +23,46 @@
   --r-md: 15px;
   --r-lg: 35px;
 
+  /* How long a stacked panel holds still before the next one starts sliding up
+     over it. The panel is 100svh and fills the screen exactly, so this margin
+     lives entirely below the fold: the panel looks completely static while the
+     visitor reads it, and nothing appears to move.
+
+     85svh, not 0.85svh: a viewport unit is already a percentage, so 1svh is
+     1% of the height and 0.85svh would be 7.65px on a 900px screen - always
+     under the 420px floor, which would quietly pin the hold to its minimum on
+     every display. */
+  --stack-dwell: clamp(420px, 85svh, 860px);
+
   --display-2xl: clamp(3rem, 1.1rem + 8.6vw, 8.5rem);
-  --display-xl: clamp(2.5rem, 1.2rem + 5.6vw, 5.25rem);
-  --display-lg: clamp(2rem, 1.1rem + 3.6vw, 3.75rem);
+
+  /* Left-column section headings ("A race, run across state lines.",
+     "A few numbers behind the ranking."). --display-xl drives the numbers
+     heading and is its only consumer (.section-title and .rails-title are
+     pinned to their own clamp further down), so the two can be sized
+     independently. Both kept fluid so they still compress in the stacked
+     panels on short viewports. */
+  --display-xl: clamp(3.25rem, 1.2rem + 8.2vw, 7.75rem);
+  --display-lg: clamp(2.375rem, 1.1rem + 5.2vw, 4.75rem);
+
+  /* The problem panel's left-column heading. A token of its own rather than a
+     bump to --display-lg, so the two headings can be sized independently -
+     growing this line must not drag the numbers heading with it. */
+  --display-split: clamp(2.75rem, 1.1rem + 6.4vw, 6rem);
+
   --body-lg: clamp(1.0625rem, 1.02rem + 0.22vw, 1.1875rem);
   --body-md: clamp(0.9375rem, 0.9rem + 0.18vw, 1.0625rem);
+}
+
+/* The page is absolute black, not the console's --color-void.
+   tokens.css paints html/body with --color-void (#0c0c0f) from @layer base, and
+   that file is shared with the console, which is built around a lifted surface
+   tone with true-black cards punched out of it. Retuning that token would drag
+   the console with it, so the landing overrides the two elements directly. This
+   rule is unlayered, which is what lets it win over the layered base. */
+html,
+body {
+  background-color: #000;
 }
 
 /* ---------------------------------------------------------------- canvas -- */
@@ -39,9 +74,12 @@
   height: 100%;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(12, 12, 15, 0.72) 0%, transparent 62%),
-    radial-gradient(ellipse 100% 100% at 50% 45%, transparent 30%, rgba(8, 8, 11, 0.92) 100%);
+  /* The field is the page background, so this is the colour the visitor actually
+     sees. It used to be two radial washes that lifted the canvas to a blue-grey;
+     over a black page those washes only ever added a cast, so they are gone and
+     the field's particles now sit on true black. The renderer clears to
+     transparent (no setClearColor), so nothing underneath is showing through. */
+  background-color: #000;
 }
 
 #landing,
@@ -131,21 +169,42 @@ a:hover {
 }
 
 /* ------------------------------------------------------------------ stack --
- * Content sections are opaque panels stacked one on top of another. Each is
- * pinned for a while, then the next one slides up over it from the bottom -
- * the two read as separate cards only if the incoming panel is genuinely
- * opaque, so these deliberately do not go translucent like the tiles do. */
+ * Content sections are opaque panels stacked one on top of another. Each locks
+ * to the top of the viewport and stays locked while the next one slides up over
+ * it from the bottom - the two read as separate cards only if the incoming panel
+ * is genuinely opaque, so these deliberately do not go translucent like the tiles
+ * do.
+ *
+ * This is position: sticky, not a ScrollTrigger pin, and the difference is the
+ * whole point. A pin reserves its runway with a spacer sized to the panel plus
+ * its hold, which means the incoming panel cannot start entering the viewport
+ * until the pin releases - so the outgoing panel is already scrolling up and out
+ * of frame for the entire 100vh that the next one takes to cover it. Sticky has
+ * no such bookkeeping: the panel simply stops at top:0 and stays there, because
+ * its containing block (<main>) still has all the following panels below it. The
+ * outgoing panel therefore holds completely still, and only the incoming one
+ * moves. */
 
 .stack-panel {
-  position: relative;
+  position: sticky;
+  top: 0;
   display: grid;
   align-content: center;
   gap: clamp(1.75rem, 3.5vh, 3rem);
   min-height: 100svh;
+  /* The hold. See --stack-dwell. */
+  margin-bottom: var(--stack-dwell);
   padding-block: clamp(4.5rem, 8vh, 6.5rem);
   border-top: 1px solid var(--color-hairline);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
-  background-color: rgba(9, 9, 12, 0.985);
+  /* True black rather than the old blue-grey, to match the page, and fully
+     opaque rather than the 0.985 alpha it used to carry. The translucency was
+     there so the WebGL field would bleed through a locked panel's edges; at 1.5%
+     it was never legible as a field anyway, it just put a permanent 1.5% haze
+     between the panel and the page behind it and muddied the hairline. The panels
+     still read as stacked sheets - the rounded top and the shadow above them are
+     doing that, not the alpha. */
+  background-color: #000;
   background-image: radial-gradient(
     ellipse 90% 55% at 50% 0%,
     rgba(61, 70, 255, 0.11),
@@ -154,23 +213,52 @@ a:hover {
   box-shadow: 0 -2rem 4rem rgba(0, 0, 0, 0.55);
 }
 
-/* Content taller than the viewport cannot be pinned without hiding part of
-   it, so motion.ts drops the pin and this keeps the panel in normal flow. */
+/* Content taller than the viewport cannot be stuck at top: 0 without pushing its
+   own overflow permanently above the fold, where it can never be scrolled to.
+   motion.ts measures the panel and adds this class, which drops it back into
+   ordinary flow - and takes the hold with it, so the spacing does not double up
+   on a phone where nothing is stuck anyway. */
 .stack-panel.is-unpinned {
+  /* relative, not static. A static element ignores z-index altogether, and a
+     sibling that is still stuck paints from the positioned layer - which is above
+     every static box - so a tall panel dropped into ordinary flow would slide
+     under a short sticky one that came before it, whatever z-index it was given.
+     Keeping it positioned preserves the 10..14 order from motion.ts, so an
+     unpinned panel still lands on top of its predecessor instead of vanishing
+     behind it. `relative` shifts nothing in layout, so the hold arithmetic in
+     setupStack, which reads document offsets, is unaffected. */
+  position: relative;
   min-height: 0;
+  margin-bottom: 0;
   border-radius: 0;
   box-shadow: none;
-  padding-block: clamp(3.5rem, 8vw, 6rem);
+  /* 8vh, not 8vw: this is vertical padding, and sizing it off the width made a
+     wide window produce a taller panel, which is the opposite of what a panel
+     trying to fit inside one viewport needs. */
+  padding-block: clamp(3.5rem, 8vh, 6rem);
 }
 
 /* Short viewports (a 1366x768 laptop, a landscape phone) have the least room,
    so the panel gives some of it back: tighter padding and a smaller heading.
    Without this the panels come up a little over one viewport and lose their
-   pin, which is the difference between the stacked effect and a gappy
+   stuck state, which is the difference between the stacked effect and a gappy
    scroll. Phones in portrait are deliberately left alone - six cards in one
-   column cannot fit any viewport, and there the unpinned fallback is correct. */
+   column cannot fit any viewport, and there the unpinned fallback is correct.
+
+   The tiles are tightened here too, not just the heading. They are most of the
+   panel's height, and both their padding and their title are sized in vw, so a
+   wide-but-short window overflows where a narrow one does not: at 1100x700 the
+   pipeline came out 815px against a 700px viewport. That overflow is not a
+   graceful degradation - is-unpinned drops both the stuck hold and the rounded
+   top corners, so a panel 16% too tall loses the whole stacked effect. Keeping
+   the panel inside the viewport is what protects the design. */
 @media (min-width: 760px) and (max-height: 880px) {
-  .stack-panel {
+  /* Both selectors on purpose. .stack-panel.is-unpinned is 0-2-0 and a media
+     query adds no specificity, so a rule that only said `.stack-panel` was
+     silently beaten by the unpinned override for exactly the panels that were
+     too tall and needed the room back. */
+  .stack-panel,
+  .stack-panel.is-unpinned {
     padding-block: clamp(2.25rem, 4.5vh, 3.5rem);
   }
 
@@ -179,6 +267,125 @@ a:hover {
   .stack-panel .numbers-title,
   .stack-panel .rails-title {
     font-size: clamp(2rem, 5.4svh, 3.5rem);
+  }
+
+  /* The two headings the ramp was tuned for get the group's floor rather than
+     its ceiling, so the bump survives on short windows instead of being
+     flattened away by the override. Kept off .section-title and .rails-title,
+     whose panels are the ones that run out of room first. */
+  .stack-panel .split-title {
+    font-size: clamp(2.25rem, 6.4svh, 4.25rem);
+  }
+
+  .stack-panel .numbers-title {
+    font-size: clamp(2.25rem, 6svh, 3.9rem);
+  }
+
+  .tile {
+    padding: clamp(0.9rem, 1.3vw, 1.15rem);
+  }
+
+  .tile-title {
+    margin-top: 0.5rem;
+    font-size: clamp(1.25rem, 0.85rem + 1vw, 1.7rem);
+  }
+
+  .tile .body-md {
+    margin-top: 0.6rem;
+  }
+
+  .tile-meta {
+    margin-top: 0.85rem;
+  }
+
+  /* The same reasoning for the capability cards. They go to three columns only
+     at 1100px, so between 640 and 1099 they are two columns of three rows, and
+     that is the tallest the panel gets on a short window. */
+  .cards {
+    margin-top: clamp(0.75rem, 1.6vh, 1.25rem);
+  }
+
+  .card {
+    padding: clamp(0.85rem, 1.5vh, 1.15rem);
+  }
+
+  .card-chip {
+    width: clamp(2rem, 4.2vh, 2.75rem);
+    height: clamp(2rem, 4.2vh, 2.75rem);
+  }
+}
+
+/* Very short desktop windows (a laptop at 1280x700, a short browser window).
+   The rule above is not enough on its own here: the pipeline's tile rail is two
+   columns of real copy and simply needs more room back than the gentle
+   reduction gives. */
+@media (min-width: 760px) and (max-height: 760px) {
+  .stack-panel,
+  .stack-panel.is-unpinned {
+    padding-block: clamp(1.5rem, 3vh, 2.25rem);
+    gap: clamp(1rem, 2vh, 1.5rem);
+  }
+
+  .stack-panel .section-title,
+  .stack-panel .split-title,
+  .stack-panel .numbers-title,
+  .stack-panel .rails-title {
+    font-size: clamp(1.75rem, 4.6svh, 2.5rem);
+  }
+
+  /* Same deal as the 880px block, one step gentler: this is the tightest
+     window the stack runs in, and the panels here have the least slack in it
+     (at 1100x700 they sit on 100svh exactly), so the headings get their
+     floors raised rather than a real scale-up. */
+  .stack-panel .split-title {
+    font-size: clamp(1.875rem, 5.4svh, 3rem);
+  }
+
+  .stack-panel .numbers-title {
+    font-size: clamp(1.9rem, 5.2svh, 3.1rem);
+  }
+
+  .tile {
+    padding: clamp(0.75rem, 1.1vw, 1rem);
+  }
+
+  .tile-title {
+    font-size: clamp(1.125rem, 0.8rem + 0.8vw, 1.45rem);
+  }
+
+  .tile .body-md,
+  .tile-meta {
+    margin-top: 0.5rem;
+  }
+
+  /* The capability cards are the last thing still able to push a panel past the
+     fold here: they only reach three columns at 1100px, so below that they are
+     three rows of two and the panel runs tall. Padding and chip size are not the
+     lever - the body copy is, because the height is three rows of wrapped text
+     and it is the line count that decides it. */
+  .cards {
+    margin-top: 0.5rem;
+  }
+
+  .card {
+    gap: 0.4rem;
+    padding: clamp(0.6rem, 1.1vh, 0.9rem);
+  }
+
+  .card-chip {
+    width: clamp(1.6rem, 3.4vh, 2.1rem);
+    height: clamp(1.6rem, 3.4vh, 2.1rem);
+    font-size: 0.75rem;
+  }
+
+  .card-title {
+    font-size: 0.9375rem;
+  }
+
+  .card .body-md {
+    margin-top: 0.4rem;
+    font-size: 0.8125rem;
+    line-height: 1.4;
   }
 }
 
@@ -189,69 +396,59 @@ a:hover {
   max-width: 20ch;
 }
 
+/* Only .numbers-title was asked to grow. .section-title and .rails-title keep
+   the original ramp so the rest of the page does not reflow. */
+.section-title,
+.rails-title {
+  font-size: clamp(2.5rem, 1.2rem + 5.6vw, 5.25rem);
+}
+
 /* ------------------------------------------------------------------- nav -- */
-/* A floating bar inset from the edges, not a full-bleed header. */
+/* The console header, reproduced here so the landing and the app read as one
+   product. Everything structural comes from the same Tailwind utilities as
+   src/app/components/layout/TopNav.tsx; what is left below is only the part a
+   router would normally have supplied, because an anchor link has no route to
+   be active. */
 
 .landing-nav {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  right: 1rem;
+  /* The panels are position: sticky inside the same #landing stacking context
+     and are numbered 10..14 by motion.ts, and .close sits at 20, so this is the
+     only thing keeping the header in front of all of them. */
   z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  height: 64px;
-  padding-inline: 0.75rem 0.75rem;
-  border-radius: var(--r-sm);
-  background-color: rgba(12, 12, 15, 0.72);
-  backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid var(--color-hairline);
-  transition:
-    background-color 0.4s var(--ease),
-    border-color 0.4s var(--ease);
 }
 
-.landing-nav.is-scrolled {
-  background-color: rgba(8, 8, 11, 0.92);
-}
-
-.nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding-left: 0.5rem;
-  color: var(--color-accent);
-}
-
-.nav-brand-name {
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  color: var(--color-ink);
-}
-
-.nav-links {
-  display: none;
-  align-items: center;
-  gap: 2rem;
-}
-
-@media (min-width: 900px) {
-  .nav-links {
-    display: flex;
-  }
-}
-
+/* TopNav gets its colors from React Router's isActive. These are the same three
+   states, keyed off .is-active instead: faint at rest, muted on hover, ink when
+   the section owns the screen. .is-active is declared after :hover on purpose -
+   at equal specificity the later rule wins, so an active link stays ink instead
+   of greying out while the pointer is over it. */
 .nav-link {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-faint);
+  /* Opt out of the page-wide wipe underline above. The nav draws its own rule in
+     the accent (.nav-underline), so on hover the two stacked: a near-white line
+     from `a { background-size: 100% 1px }` in currentColor, plus the accent one,
+     a few pixels apart. Nav links keep the accent rule and lose the white one. */
+  background-image: none;
 }
 
 .nav-link:hover {
+  color: var(--color-muted);
+}
+
+.nav-link.is-active {
   color: var(--color-ink);
+  /* Only the narrow-screen row has a border to tint; the desktop links have no
+     border-width, so this is inert there. */
+  border-bottom-color: var(--color-accent);
+}
+
+.nav-underline {
+  transform: scaleX(0);
+}
+
+.nav-link:hover .nav-underline,
+.nav-link.is-active .nav-underline {
+  transform: scaleX(1);
 }
 
 /* --------------------------------------------------------------- buttons -- */
@@ -360,12 +557,124 @@ a:hover {
   width: 100%;
   max-width: 82rem;
   padding-inline: 1.5rem;
+  display: grid;
+  align-items: center;
+  gap: 3rem;
 }
 
 @media (min-width: 768px) {
   .hero-inner {
     padding-inline: 2.5rem;
   }
+}
+
+/* The card stack only earns its place next to the copy once there is a second
+   column for it; below that the copy is the whole story. */
+@media (min-width: 1024px) {
+  .hero-inner {
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+    gap: clamp(2rem, 4vw, 4.5rem);
+  }
+}
+
+/* The stack is the original CardSwap's own arrangement rather than a fitted
+   block. The container is a fixed box the cards are centred in and the back
+   cards deliberately spill out of it upwards and to the right, so it must not
+   clip: `overflow: visible` is load-bearing here, not an oversight. The
+   container is anchored to the bottom-right of the hero column and nudged by
+   the same translate the original uses.
+
+   --swap-drop and --swap-spill are published by cardSwap.ts and are the two
+   corrections CSS cannot derive itself, because the cards are transformed in 3D
+   and the back ones are rendered smaller than their layout box:
+     --swap-drop  how far the fan's centre sits above the container's centre.
+                  The cards step up as they go back, so the fan is lopsided and
+                  would otherwise ride high in the column. Subtracting the 20%
+                  that the translate already applies keeps the total equal to
+                  the drop, rather than double-counting it.
+     --swap-spill how far the fan reaches past the container's right edge, so
+                  the original's rightward nudge cannot push the back cards off
+                  the viewport on a narrow screen. */
+.hero-swap {
+  /* Declared here, not on .swap-stack: custom properties inherit downwards, so
+     the cell that reserves the column's height has to see them too. */
+  --swap-w: 23rem;
+  --swap-h: 18.4rem;
+
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .hero-swap {
+    display: block;
+    position: relative;
+    height: var(--swap-h);
+  }
+}
+
+.swap-stack {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: var(--swap-w);
+  height: var(--swap-h);
+  transform: translate(calc(5% - var(--swap-spill, 0px)), 20%)
+    translateY(calc(var(--swap-drop, 0px) - 20%));
+  transform-origin: bottom right;
+
+  perspective: 900px;
+  overflow: visible;
+}
+
+.swap-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: var(--swap-w);
+  height: var(--swap-h);
+  padding: clamp(1.1rem, 1.9vh, 1.5rem);
+  /* Black card, white hairline. On a black page the fill is invisible by
+     design and the border is the whole silhouette - a lifted grey surface has
+     almost nothing to separate it from the particle field behind it. */
+  border: 1px solid #fff;
+  border-radius: 12px;
+  background: #000;
+
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.swap-card-meta {
+  margin-top: auto;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--color-hairline-soft);
+}
+
+.swap-card-meta > :nth-child(even) {
+  text-align: right;
+}
+
+.swap-card-score {
+  color: var(--color-accent-bright);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.swap-card:focus-visible {
+  outline: 1px solid var(--color-accent-bright);
+  outline-offset: 3px;
 }
 
 .hero-title {
@@ -476,7 +785,7 @@ a:hover {
 }
 
 .split-title {
-  font-size: var(--display-lg);
+  font-size: var(--display-split);
   max-width: 12ch;
 }
 
@@ -491,7 +800,7 @@ a:hover {
 /* Stacked full-width panels that parallax past one another, alternating sides.
    The weight shift is the whole reason this reads as a timeline. */
 
-/* A pinned panel is only one viewport tall, so the timeline reads as a grid
+/* A stuck panel is only one viewport tall, so the timeline reads as a grid
    rather than a single tall column. Alternating alignment is kept - it is the
    weight shift that makes this feel like a timeline instead of a table. */
 
@@ -652,7 +961,7 @@ a:hover {
 }
 
 /* Two columns so four metrics are two rows rather than a 1000px column -
-   the panel they live in has to fit inside a single viewport to pin. */
+   the panel they live in has to fit inside a single viewport to be stuck. */
 
 .numbers-list {
   display: grid;
@@ -769,6 +1078,10 @@ a:hover {
 .rail-track {
   display: flex;
   width: max-content;
+  /* The shift and the duration are both published by rails.ts, because neither
+     can be written down in a stylesheet: the shift is one group's share of the
+     track, and the track's length depends on how many copies the viewport
+     needed. Two copies is the floor that ships in the markup. */
   animation: rail-slide var(--rail-duration, 38s) linear infinite;
 }
 
@@ -777,6 +1090,7 @@ a:hover {
   align-items: center;
   gap: 0.75rem;
   padding-right: 0.75rem;
+  flex: 0 0 auto;
 }
 
 .rail-pill {
@@ -790,9 +1104,19 @@ a:hover {
   color: var(--color-muted);
 }
 
+/* Left to right, which is the direction the rail reads as "incoming". The
+   previous keyframes went to -50% from 0, so the track slid right-to-left: the
+   pills entered at the right edge and left at the left, which is the opposite of
+   what the section is describing. Starting one group to the left and sliding to
+   0 moves the content rightward, and because every group is an identical copy the
+   end state is pixel-identical to the start, so it still wraps with no seam. */
 @keyframes rail-slide {
+  from {
+    transform: translateX(var(--rail-shift, -50%));
+  }
+
   to {
-    transform: translateX(-50%);
+    transform: translateX(0);
   }
 }
 
@@ -819,8 +1143,21 @@ a:hover {
 /* ------------------------------------------------------------------ close -- */
 /* A saturated band, rounded at the bottom, exactly like the reference CTA. */
 
+/* The rails panel above is the last stacked one, and a sticky element can only
+   hold while its parent still has runway below it. This section is therefore a
+   full screen tall and opaque: it gives rails a whole viewport of runway to stay
+   locked for, and covers it completely on the way up. Without both, the last
+   panel would reach the bottom of the page still stuck and get sliced off rather
+   than sliding away. */
 .close {
+  position: relative;
+  /* Above the stack, which motion.ts numbers 10..14. */
+  z-index: 20;
+  display: grid;
+  align-content: center;
+  min-height: 100svh;
   padding-top: clamp(2rem, 4vw, 3rem);
+  background-color: #000;
 }
 
 .close-band {
@@ -859,16 +1196,51 @@ a:hover {
 
 /* ----------------------------------------------------------------- footer -- */
 
+/* The accent sits behind the whole footer as a band, as it did before, and the
+   content sits on a raised surface inside it. The glows are inside that surface
+   so they read as light in the panel rather than light leaking in from the page
+   behind it. */
 .landing-footer {
+  position: relative;
+  overflow: hidden;
   background-color: var(--color-accent-strong);
-  padding-bottom: 1.5rem;
+  padding: clamp(2.5rem, 5vw, 4rem) 0 1.5rem;
+}
+
+.footer-glow {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.footer-glow-a {
+  top: 0;
+  right: 0;
+  width: 31.25rem;
+  height: 31.25rem;
+  background-color: var(--color-accent);
+  opacity: 0.1;
+  filter: blur(120px);
+}
+
+.footer-glow-b {
+  bottom: 0;
+  left: 0;
+  width: 25rem;
+  height: 25rem;
+  background-color: var(--color-accent);
+  opacity: 0.06;
+  filter: blur(100px);
 }
 
 .footer-block {
+  position: relative;
+  z-index: 1;
   margin-inline: auto;
   width: 100%;
   max-width: 82rem;
   padding: clamp(2.5rem, 5vw, 4rem) 1.5rem;
+  border: 1px solid var(--color-hairline);
   border-radius: var(--r-lg);
   background-color: var(--color-surface);
   display: grid;
@@ -877,34 +1249,228 @@ a:hover {
 
 @media (min-width: 900px) {
   .footer-block {
-    grid-template-columns: 2fr 1fr 1fr;
+    /* 5 / 3 / 4, matching the reference's clock/nav/dispatch split. */
+    grid-template-columns: 5fr 3fr 4fr;
     padding-inline: 2.5rem;
   }
 }
 
-.footer-lead {
+.footer-telemetry {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  color: var(--color-accent);
+  gap: 1.5rem;
 }
 
-.footer-pitch {
-  font-size: var(--body-lg);
-  line-height: 1.45;
-  letter-spacing: -0.025em;
-  color: var(--color-muted);
-  max-width: 32rem;
+/* Section labels sit in the grotesk. Wide-tracked uppercase monospace is the
+   loudest "generated template" tell on a page, and tokens.css already says so:
+   mono is reserved for values a human reads out loud. */
+.footer-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.footer-clocks {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 480px) {
+  .footer-clocks {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.footer-clock {
+  padding: 1rem;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--r-md);
+  background-color: var(--color-elevated);
+}
+
+.footer-clock-zone {
+  display: block;
+  color: var(--color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.625rem;
+  font-weight: 500;
+}
+
+/* The digits are set in the grotesk with tabular figures rather than in mono.
+   They still hold their columns as the seconds tick, and they keep the page's
+   voice - monospace at this size reads as terminal output, not as a clock. */
+.footer-clock-time {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-ink);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.125rem;
+}
+
+@media (min-width: 480px) {
+  .footer-clock-time {
+    font-size: 1.25rem;
+  }
+}
+
+.footer-clock-role {
+  display: block;
+  margin-top: 0.3125rem;
+  color: var(--color-stable);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.footer-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .footer-head {
-  margin-bottom: 0.5rem;
-  color: var(--color-ink);
+  margin-bottom: 0.75rem;
+  color: var(--color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.footer-head-gap {
+  margin-top: 1.5rem;
 }
 
 .footer-body {
   color: var(--color-faint);
   line-height: 1.6;
+  font-size: 0.75rem;
+}
+
+.footer-links {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 480px) {
+  .footer-links {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  /* Single column once the footer is three across, or the labels wrap. */
+  .footer-links {
+    grid-template-columns: 1fr;
+  }
+}
+
+.footer-link {
+  display: block;
+  padding-block: 0.25rem;
+  color: var(--color-faint);
+  transition: color 0.2s var(--ease);
+}
+
+.footer-link:hover {
+  color: var(--color-ink);
+}
+
+.footer-link-index {
+  color: var(--color-accent);
+}
+
+/* Display-size wordmark, opening the footer above the telemetry row. `clamp` on
+   both ends rather than a flat vw: at 14vw a phone would set this larger than the
+   screen, and the floor keeps it legible on the small end. */
+.footer-wordmark {
+  position: relative;
+  z-index: 1;
+  margin: 0 auto clamp(1.5rem, 3vw, 2rem);
+  width: 100%;
+  max-width: 82rem;
+  padding-inline: 1.5rem;
+  /* tokens.css has no --font-display token, and adding one for a single word
+     would mean overriding a file shared with the console. This is the face the
+     hero already uses, carried heavier. */
+  font-family: var(--font-sans);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--color-ink);
+  opacity: 0.9;
+  font-size: clamp(2.75rem, 13vw, 11rem);
+  user-select: none;
+  transition: color 0.5s var(--ease);
+}
+
+@media (min-width: 768px) {
+  .footer-wordmark {
+    padding-inline: 2.5rem;
+  }
+}
+
+.footer-wordmark:hover {
+  color: var(--color-accent);
+}
+
+.footer-wordmark-dot {
+  color: var(--color-accent);
+}
+
+.footer-meta {
+  position: relative;
+  z-index: 1;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 82rem;
+  padding: clamp(1.5rem, 3vw, 2rem) 1.5rem 0;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+  margin-top: clamp(1.5rem, 3vw, 2rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--color-faint);
+  font-size: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .footer-meta {
+    padding-inline: 2.5rem;
+  }
+}
+
+.footer-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.footer-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-ink);
+  transition: color 0.2s var(--ease);
+}
+
+.footer-top:hover {
+  color: var(--color-accent);
 }
 
 /* ----------------------------------------------------------------- motion -- */

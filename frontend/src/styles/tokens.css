@@ -1,4 +1,4 @@
-﻿@theme {
+@theme {
   /* ---- Type ---- */
   --font-sans: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
@@ -9,7 +9,7 @@
      real object punched out of the canvas instead of a grey rectangle floating
      on it. Separation comes from hairlines and from the 4% lift on --color-void,
      not from greying out the card. */
-  --color-void: #0c0c0f;
+  --color-void: #000000;
   --color-abyss: #08080b;
   --color-surface: #000000;
   --color-elevated: #15151a;

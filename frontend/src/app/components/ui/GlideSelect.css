@@ -1,0 +1,181 @@
+/* GlideSelect — a floating listbox for the console.
+   Colours are expressed as local custom properties so every default resolves
+   to a token from tokens.css, and the component can be recoloured per instance
+   through the `colors` prop without a second stylesheet. */
+
+.glide-select {
+  --glide-bg: var(--color-abyss, #1a1a1a);
+  --glide-fg: var(--color-ink, #f5f5f5);
+  --glide-dim: var(--color-muted, #a1a1ac);
+  --glide-border: var(--color-hairline, #2a2a2a);
+  --glide-accent: var(--color-accent, #6f78ff);
+  --glide-accent-fg: var(--color-accent-bright, #9aa0ff);
+  --glide-hover: #2c2c36;
+  --glide-wash: rgba(111, 120, 255, 0.14);
+  --glide-radius: var(--radius-md, 12px);
+
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.glide-select.is-disabled {
+  opacity: 0.45;
+}
+
+/* ---- Trigger ----
+   Deliberately the same box as .field + .select: same background, hairline,
+   radius and type ramp, so swapping a native select for this reads as a
+   refinement of the same control rather than a new widget. */
+.glide-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  background-color: var(--glide-bg);
+  border: 1px solid var(--glide-border);
+  border-radius: var(--glide-radius);
+  color: var(--glide-fg);
+  font-size: 0.8125rem;
+  letter-spacing: -0.005em;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease-out-expo),
+    background-color 0.2s var(--ease-out-expo);
+}
+
+.glide-select--sm .glide-trigger {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.glide-select--md .glide-trigger {
+  min-height: 38px;
+  padding: 8px 11px;
+}
+
+.glide-select--lg .glide-trigger {
+  min-height: 44px;
+  padding: 11px 14px;
+}
+
+.glide-trigger:hover {
+  background-color: var(--color-surface, #000);
+  border-color: var(--glide-hover);
+}
+
+.glide-trigger:focus {
+  outline: none;
+}
+
+.glide-trigger:focus-visible {
+  outline: 1px solid var(--color-accent-bright, #9aa0ff);
+  outline-offset: 2px;
+  border-color: var(--glide-accent);
+}
+
+.glide-select[data-open="true"] .glide-trigger {
+  border-color: var(--glide-accent);
+}
+
+.glide-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glide-arrow {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--glide-dim);
+  transition: transform 0.2s var(--ease-out-expo);
+}
+
+.glide-select[data-open="true"] .glide-arrow {
+  transform: rotate(180deg);
+}
+
+/* ---- Menu ----
+   Portalled to <body> and positioned from the trigger rect, so this is always
+   fixed to the viewport. `.panel` clips its overflow and `.reveal` retains a
+   transform, either of which would cut an in-flow overlay off. */
+.glide-menu {
+  position: fixed;
+  z-index: 40;
+  padding: 4px;
+  background-color: var(--color-elevated, #1a1a1a);
+  border: 1px solid var(--glide-border);
+  border-radius: var(--glide-radius);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.glide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 17rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.glide-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: calc(var(--glide-radius) - 6px);
+  color: var(--glide-dim);
+  font-size: 0.8125rem;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.15s var(--ease-out-expo),
+    color 0.15s var(--ease-out-expo);
+}
+
+.glide-item:hover,
+.glide-item[data-active="true"] {
+  background-color: var(--glide-wash);
+  color: var(--glide-fg);
+}
+
+.glide-item[aria-selected="true"] {
+  color: var(--glide-fg);
+  font-weight: 500;
+}
+
+.glide-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glide-item-tag {
+  margin-left: auto;
+  color: var(--glide-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.glide-item-check {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--glide-accent-fg);
+}
+
+.glide-item-tag + .glide-item-check {
+  margin-left: 0;
+}

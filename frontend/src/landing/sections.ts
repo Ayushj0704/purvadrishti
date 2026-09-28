@@ -1,4 +1,4 @@
-﻿import { h, wordmark } from "./dom";
+import { h, svg, wordmark } from "./dom";
 
 /**
  * Copy follows one rule set throughout: sentence case, two to four words per
@@ -31,7 +31,7 @@ const TILES = [
     index: "03",
     title: "Ranked, with a window.",
     body: "A classifier scores each survivor and a separate regressor estimates minutes-to-cash-out. You get a place to go, and how long you have to get there.",
-    meta: ["Horizons 30–720 min", "Top-K = 5"],
+    meta: ["Horizons 30720 min", "Top-K = 5"],
   },
   {
     index: "04",
@@ -77,7 +77,7 @@ const METRICS = [
 
 const RAILS = [
   ["Top-5 recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8", "Radius 5 km"],
-  ["Model XGB v0.2.0", "Horizons 30–720 min", "Top-K = 5", "Cross-state trails on"],
+  ["Model XGB v0.2.0", "Horizons 30720 min", "Top-K = 5", "Cross-state trails on"],
   ["LEA · Bank · I4C", "Audit logged", "Authorised use only", "No live banking connections"],
 ];
 
@@ -92,34 +92,168 @@ function scribble(word: string | Node): HTMLElement {
   return h("span", { class: "scribble" }, word);
 }
 
+const NAV_ITEMS = [
+  { label: "Pipeline", href: "#pipeline", index: "01" },
+  { label: "Capabilities", href: "#capabilities", index: "02" },
+  { label: "Evaluation", href: "#evaluation", index: "03" },
+];
+
+/**
+ * The console header, rebuilt for a page with no router.
+ *
+ * Structure, type and spacing are lifted from
+ * src/app/components/layout/TopNav.tsx so both ends of the product read as one
+ * piece: same 64px full-bleed bar, same two-line brand lockup, same caps
+ * labels, same hairline action cluster, same scrollable row on narrow screens.
+ *
+ * The one thing it cannot copy is the active-route underline. React Router
+ * hands TopNav an `isActive` flag for free; anchor links have no route, so
+ * setupNavSpy() in motion.ts derives the same state from scroll geometry and
+ * toggles .is-active. The markup keeps the identical underline element so the
+ * rule stays in the stylesheet either way.
+ *
+ * .landing-nav is kept on the header because the intro timeline and the nav
+ * spy both select on it.
+ */
 function nav(): HTMLElement {
   return h(
     "header",
-    { class: "landing-nav" },
+    { class: "landing-nav fixed inset-x-0 top-0 bg-transparent backdrop-blur-md" },
     h(
-      "a",
-      { href: "/", class: "nav-brand", "aria-label": "PurvaDrishti home" },
-      wordmark(26),
-      h("span", { class: "nav-brand-name" }, "PurvaDrishti"),
+      "div",
+      {
+        class: "mx-auto flex h-16 max-w-[110rem] items-center justify-between gap-8 px-5 sm:px-8",
+      },
+      h(
+        "a",
+        {
+          href: "/",
+          class: "group flex items-center gap-3 text-accent",
+          "aria-label": "PurvaDrishti home",
+        },
+        wordmark(28),
+        h(
+          "span",
+          { class: "flex flex-col leading-none" },
+          h(
+            "span",
+            {
+              class: "text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink",
+            },
+            "PurvaDrishti",
+          ),
+          h("span", { class: "eyebrow mt-1" }, "Cash-out intelligence"),
+        ),
+      ),
+      h(
+        "nav",
+        { class: "hidden items-center gap-1 md:flex", "aria-label": "Sections" },
+        ...NAV_ITEMS.map((item) =>
+          h(
+            "a",
+            {
+              href: item.href,
+              "data-nav-link": "",
+              class: "nav-link group relative px-4 py-2 transition-colors duration-200",
+            },
+            h("span", { class: "label-caps" }, item.label),
+            h("span", {
+              class: "nav-underline absolute inset-x-4 -bottom-px h-px origin-left bg-accent transition-transform duration-300",
+            }),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { class: "flex items-center gap-2" },
+        h(
+          "div",
+          {
+            class: "label-caps hidden items-center gap-2 rounded-full border border-hairline px-3 py-2 text-muted sm:flex",
+          },
+          h(
+            "span",
+            { class: "relative inline-flex size-1.5" },
+            h("span", {
+              class: "animate-ping-slow absolute inset-0 rounded-full bg-stable",
+            }),
+            h("span", { class: "relative size-1.5 rounded-full bg-stable" }),
+          ),
+          "Live",
+        ),
+        // Real document navigation, not React Router - this has to tear the whole
+        // runtime down so the console starts on a clean page.
+        //
+        // Trailing slash is load-bearing: dashboard/ is a directory on disk, and
+        // only ".../dashboard/" resolves to dashboard/index.html. A bare
+        // /dashboard 404s on a static host and falls back to the landing page
+        // locally.
+        h(
+          "a",
+          {
+            href: "/dashboard/",
+            class: "label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors duration-200 hover:border-[#2e2e3a] hover:bg-white/[0.03] hover:text-ink",
+          },
+          "Enter console",
+        ),
+      ),
     ),
+    // data-lenis-prevent matters more here than on the console: this row is a
+    // horizontal scroller, and without it Lenis swallows the wheel and the row
+    // cannot be panned sideways.
     h(
       "nav",
-      { class: "nav-links" },
-      ...[
-        ["Pipeline", "#pipeline"],
-        ["Capabilities", "#capabilities"],
-        ["Evaluation", "#evaluation"],
-      ].map(([label, href]) => h("a", { href, class: "nav-link" }, label)),
+      {
+        "data-lenis-prevent": "",
+        class: "flex items-center gap-1 overflow-x-auto border-t border-transparent px-5 md:hidden",
+        "aria-label": "Sections",
+      },
+      ...NAV_ITEMS.map((item) =>
+        h(
+          "a",
+          {
+            href: item.href,
+            "data-nav-link": "",
+            class: "nav-link label-caps whitespace-nowrap border-b-2 px-3 py-3 transition-colors",
+          },
+          h("span", { class: "mr-2 text-accent" }, item.index),
+          item.label,
+        ),
+      ),
     ),
-    // Real document navigation, not React Router - this has to tear the whole
-    // runtime down so the console starts on a clean page.
-    //
-    // Trailing slash is load-bearing: dashboard/ is a directory on disk, and
-    // only ".../dashboard/" resolves to dashboard/index.html. A bare /dashboard
-    // 404s on a static host and falls back to the landing page locally.
-    h("a", { href: "/dashboard/", class: "btn btn-primary btn-sm" }, "Enter console"),
   );
 }
+
+/**
+ * The hero's right-hand stack. A single complaint in, a ranked list out — the
+ * same shape the console shows, run early enough to still be worth something.
+ */
+const HERO_CARDS = [
+  {
+    venue: "HDFC ATM, Nehru Place",
+    note: "Two hops from the last confirmed withdrawal, both before noon.",
+    score: "0.94",
+    window: "14:00  17:00",
+  },
+  {
+    venue: "State Bank ATM, C-Scheme",
+    note: "Withdrawal burst across four accounts in the same forty minutes.",
+    score: "0.88",
+    window: "16:00  19:00",
+  },
+  {
+    venue: "Axis ATM, Banaras Road",
+    note: "Complaint filed in Delhi, cash expected well south of it.",
+    score: "0.81",
+    window: "11:00  13:00",
+  },
+  {
+    venue: "ICICI ATM, Sector 18",
+    note: "Rank held steady overnight; no competing burst in range.",
+    score: "0.76",
+    window: "19:00  22:00",
+  },
+] as const;
 
 function hero(): HTMLElement {
   return h(
@@ -128,35 +262,62 @@ function hero(): HTMLElement {
     h(
       "div",
       { class: "hero-inner" },
-      h("p", { class: "kicker" }, "Smart India Hackathon 26"),
-      h(
-        "h1",
-        { class: "display hero-title" },
-        "The money moves.",
-        h("br"),
-        h("span", { class: "text-accent" }, "You have hours."),
-      ),
-      h(
-        "p",
-        { class: "hero-lede" },
-        "Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns one victim complaint into a ranked list of probable ATMs, and a predicted withdrawal window — before the cash is gone.",
-      ),
       h(
         "div",
-        { class: "hero-actions" },
-        h("a", { href: "/dashboard/", class: "btn btn-primary" }, "Enter the console", h("span", { class: "btn-arrow" }, "→")),
-        h("a", { href: "#pipeline", class: "btn btn-secondary" }, "See how it works"),
+        { class: "hero-copy" },
+        h(
+          "h1",
+          { class: "display hero-title" },
+          "Purva",
+          h("span", { class: "text-accent" }, "Drishti"),
+        ),
+        h(
+          "p",
+          { class: "hero-lede" },
+          "Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns one victim complaint into a ranked list of probable ATMs, and a predicted withdrawal window, before the cash is gone.",
+        ),
+        h(
+          "div",
+          { class: "hero-actions" },
+          h("a", { href: "/dashboard/", class: "btn btn-primary" }, "Enter the console", h("span", { class: "btn-arrow" }, "→")),
+          h("a", { href: "#pipeline", class: "btn btn-secondary" }, "See how it works"),
+        ),
+        h(
+          "dl",
+          { class: "hero-stats" },
+          ...[
+            ["Top-5 recall", "82.4%"],
+            ["Time MAE", "38 min"],
+            ["Horizons", "4"],
+          ].flatMap(([label, value]) => [
+            h("div", {}, h("dt", { class: "stat-label" }, label), h("dd", { class: "stat-value tnum" }, value)),
+          ]),
+        ),
       ),
-      h(
-        "dl",
-        { class: "hero-stats" },
-        ...[
-          ["Top-5 recall", "82.4%"],
-          ["Time MAE", "38 min"],
-          ["Horizons", "4"],
-        ].flatMap(([label, value]) => [
-          h("div", {}, h("dt", { class: "stat-label" }, label), h("dd", { class: "stat-value tnum" }, value)),
-        ]),
+        h(
+          "div",
+          { class: "hero-swap" },
+          h(
+            "div",
+            { class: "swap-stack", id: "hero-swap", "aria-label": "Sample ranked predictions" },
+            ...HERO_CARDS.map((card, i) =>
+              h(
+                "article",
+                { class: "swap-card", "data-swap-card": "", tabindex: "0", role: "button", "aria-label": `Prediction ${i + 1} of ${HERO_CARDS.length}: ${card.venue}. Show the next prediction.` },
+                h("span", { class: "card-chip", "aria-hidden": "true" }, String(i + 1).padStart(2, "0")),
+                h("h2", { class: "card-title" }, card.venue),
+                h("p", { class: "body-md" }, card.note),
+                h(
+                  "div",
+                  { class: "swap-card-meta" },
+                  h("span", { class: "stat-label" }, "Confidence"),
+                  h("span", { class: "swap-card-score tnum" }, card.score),
+                  h("span", { class: "stat-label" }, "Window"),
+                  h("span", { class: "tnum" }, card.window),
+                ),
+            ),
+          ),
+        ),
       ),
     ),
     h("div", { class: "scroll-cue", "aria-hidden": "true" }, h("span", { class: "scroll-cue-line" }), h("span", { class: "stat-label" }, "Scroll")),
@@ -176,7 +337,7 @@ function problem(): HTMLElement {
         { class: "split-aside" },
         h("p", { class: "kicker" }, KICKERS.problem),
         h(
-          "h2",
+          "h1",
           { class: "display split-title" },
           "A race, run across state lines.",
         ),
@@ -187,7 +348,7 @@ function problem(): HTMLElement {
         h(
           "p",
           { class: "body-lg" },
-          "By the time a complaint reaches an investigator the money is usually already gone — sometimes withdrawn in a different state from the victim. The trail lives on the transaction, not the complaint.",
+          "By the time a complaint reaches an investigator the money is usually already gone, sometimes withdrawn in a different state from the victim. The trail lives on the transaction, not the complaint.",
         ),
         h(
           "p",
@@ -316,7 +477,7 @@ function evaluation(): HTMLElement {
 function rails(): HTMLElement {
   return h(
     "section",
-      { class: "section rails stack-panel" },
+      { class: "section rails stack-panel", id: "rails" },
     h(
       "div",
       { class: "shell" },
@@ -384,30 +545,167 @@ function close(): HTMLElement {
   );
 }
 
+/** Three zones for the footer clocks, mirroring PageFooter's ZONES. */
+const FOOTER_ZONES = [
+  { city: "Guwahati", zone: "IST", timeZone: "Asia/Kolkata", role: "Model host" },
+  { city: "London", zone: "GMT", timeZone: "Europe/London", role: "Audit desk" },
+  { city: "New York", zone: "EST", timeZone: "America/New_York", role: "Review liaison" },
+];
+
+const FOOTER_LINKS = [
+  { href: "#problem", label: "Problem" },
+  { href: "#pipeline", label: "Pipeline" },
+  { href: "#capabilities", label: "Capabilities" },
+  { href: "#evaluation", label: "Evaluation" },
+  { href: "#rails", label: "Built for" },
+  { href: "/dashboard/", label: "Enter console" },
+];
+
+/**
+ * The Lusion reference layout, ported to the landing's own hyperscript.
+ *
+ * The console has this footer in React (see app/components/layout/PageFooter),
+ * but the landing page ships no React on purpose, so this is the same structure
+ * written against `h` instead of JSX. The two are kept in step deliberately -
+ * same zones, same wordmark treatment, same accent.
+ */
 function footer(): HTMLElement {
   return h(
     "footer",
     { class: "landing-footer" },
+
+    // Decorative glow. aria-hidden so the blurred blobs stay out of the
+    // accessibility tree - there is nothing in them to read.
+    h("div", { class: "footer-glow footer-glow-a", "aria-hidden": "true" }),
+    h("div", { class: "footer-glow footer-glow-b", "aria-hidden": "true" }),
+
+    // The wordmark leads, above the telemetry row. Set at display size it reads
+    // as the heading of the footer rather than a sign-off at the bottom of it,
+    // and the clocks settle underneath it instead of the page ending on a
+    // telemetry panel. A paragraph rather than a heading: the hero already owns
+    // the h1, and a second one here would compete with it in the outline.
+    h(
+      "p",
+      { class: "footer-wordmark", "aria-label": "PurvaDrishti" },
+      "PURVADRISHTI",
+      h("span", { class: "footer-wordmark-dot", "aria-hidden": "true" }, "."),
+    ),
+
     h(
       "div",
       { class: "footer-block" },
       h(
         "div",
-        { class: "footer-lead" },
-        wordmark(22),
-        h("p", { class: "footer-pitch" }, "Predictive cash-out intelligence for Indian law enforcement. Built at Smart India Hackathon 26."),
+        { class: "footer-telemetry" },
+        h(
+          "p",
+          { class: "footer-label" },
+          svg(
+            "svg",
+            {
+              viewBox: "0 0 24 24",
+              width: 16,
+              height: 16,
+              fill: "none",
+              stroke: "currentColor",
+              "stroke-width": 1.5,
+              "aria-hidden": "true",
+            },
+            svg("circle", { cx: 12, cy: 12, r: 9 }),
+            svg("path", { d: "M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" }),
+          ),
+          "Global telemetry clocks",
+        ),
+        // One polite live region for all three rather than one per clock: three
+        // separate ticking times announced every second is unusable. Only the
+        // summary is announced, and only when it changes.
+        h(
+          "div",
+          {
+            class: "footer-clocks",
+            role: "status",
+            "aria-live": "polite",
+            "aria-atomic": "true",
+          },
+          ...FOOTER_ZONES.map((zone) =>
+            h(
+              "div",
+              { class: "footer-clock" },
+              h("span", { class: "footer-clock-zone" }, `${zone.city} (${zone.zone})`),
+              h(
+                "span",
+                {
+                  class: "footer-clock-time tnum",
+                  "data-zone": zone.timeZone,
+                },
+                "--:--:--",
+              ),
+              h("span", { class: "footer-clock-role" }, zone.role),
+            ),
+          ),
+        ),
       ),
+
       h(
-        "div",
-        { class: "footer-cols" },
-        h("p", { class: "footer-head" }, "Built with"),
-        h("p", { class: "footer-body" }, "XGBoost · H3 geospatial · FastAPI · React · Three.js"),
+        "nav",
+        { class: "footer-cols", "aria-label": "Sections" },
+        h("p", { class: "footer-head" }, "Navigate"),
+        h(
+          "ul",
+          { class: "footer-links" },
+          ...FOOTER_LINKS.map((link, i) =>
+            h(
+              "li",
+              {},
+              h(
+                "a",
+                { class: "footer-link", href: link.href },
+                h("span", { class: "footer-link-index" }, String(i + 1).padStart(2, "0")),
+                ` / ${link.label}`,
+              ),
+            ),
+          ),
+        ),
       ),
+
       h(
         "div",
         { class: "footer-cols" },
         h("p", { class: "footer-head" }, "Scope"),
-        h("p", { class: "footer-body" }, "Authorised use only · Audit logged · No live banking connections"),
+        h(
+          "p",
+          { class: "footer-body" },
+          "Authorised use only · Audit logged · No live banking, NCRP or I4C connections",
+        ),
+        h("p", { class: "footer-head footer-head-gap" }, "Built with"),
+        h("p", { class: "footer-body" }, "XGBoost · H3 geospatial · FastAPI · React · Three.js"),
+      ),
+    ),
+
+    h(
+      "div",
+      { class: "footer-meta" },
+      h(
+        "p",
+        { class: "footer-meta-line" },
+        "Smart India Hackathon 26 ",
+        h("span", { "aria-hidden": "true" }, "· "),
+        "Predictive cash-out intelligence",
+      ),
+      h(
+        "p",
+        { class: "footer-meta-line" },
+        "For authorised human decision-makers. ",
+        h(
+          "button",
+          {
+            class: "footer-top",
+            type: "button",
+            "data-footer-top": "",
+          },
+          "Back to top ",
+          h("span", { "aria-hidden": "true" }, "→"),
+        ),
       ),
     ),
   );

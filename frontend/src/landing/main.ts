@@ -1,12 +1,32 @@
 import "./landing.css";
+import { initCardSwap } from "./cardSwap";
+import { initFooter } from "./footer";
 import { createField } from "./gl/createField";
 import { createLenis, initMotion } from "./motion";
+import { initRails } from "./rails";
 import { renderLanding } from "./sections";
 
 const mount = document.getElementById("landing");
 if (!mount) throw new Error("Landing mount point missing");
 
 mount.replaceWith(renderLanding());
+
+// ------------------------------------------------------------------ CardSwap --
+
+const swapRoot = document.getElementById("hero-swap");
+const disposeSwap = swapRoot ? initCardSwap(swapRoot, { pauseOnHover: true }) : null;
+
+// --------------------------------------------------------------------- rails --
+
+// Sizing only: the motion stays in CSS. Called after the mount so the rails can
+// be measured against a laid-out viewport.
+const disposeRails = initRails();
+
+// ------------------------------------------------------------------- footer --
+
+// The footer clocks and the back-to-top control. Runs its own interval, so it is
+// disposed alongside the other two rather than left to outlive the page.
+const disposeFooter = initFooter();
 
 /* ------------------------------------------------------------------ WebGL -- */
 
@@ -67,3 +87,12 @@ if (field) {
 
 // Scroll progress is the only channel from Lenis into the field.
 initMotion(createLenis(), (progress) => field?.setProgress(progress));
+
+// All of these run a rAF, a timer or an observer, so they are torn down together,
+// outside the field block - the hero and the footer are on the page whether or not
+// WebGL is available.
+window.addEventListener("pagehide", () => {
+  disposeSwap?.();
+  disposeRails();
+  disposeFooter();
+});

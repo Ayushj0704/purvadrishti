@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Square } from "lucide-react";
 import { Wordmark } from "./layout/Wordmark";
 import { cn } from "../lib/cn";
 import { CallChip } from "./CallChip";
+import { casesApi } from "../api";
+import type { CaseSummary } from "../api/cases";
+
 const DEMO_STEPS = [
   { id: "txn", label: "Fraud transaction observed", delay: 1500 },
   { id: "complaint", label: "Complaint registered", delay: 1500 },
@@ -19,12 +22,21 @@ export function DemoSimulator() {
   const navigate = useNavigate();
   const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const stop = () => {
+  /**
+   * The sequence ends on a real case, so the ID is resolved from the register at
+   * the moment the run starts rather than hard-coded to an ID that may not exist.
+   * Held in a ref because the step machine must not re-run when it resolves.
+   */
+  const caseIdRef = useRef<string | null>(null);
+
+  const stop = useCallback(() => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
     stopTimer.current = null;
     setIsRunning(false);
     setStepIndex(-1);
-  };
+    caseIdRef.current = null;
+    navigate("/");
+  }, [navigate]);
 
   useEffect(() => {
     if (!isRunning || stepIndex >= DEMO_STEPS.length - 1) return;
@@ -36,13 +48,16 @@ export function DemoSimulator() {
       setStepIndex(nextIndex);
       if (step.id === "alert") navigate("/alerts");
       if (step.id === "action") {
-        navigate("/cases/C10234");
+        // Falls back to the register itself when no single case could be
+        // resolved, so the sequence never lands on a dead route.
+        const target = caseIdRef.current;
+        navigate(target ? `/cases/${encodeURIComponent(target)}` : "/cases");
         stopTimer.current = setTimeout(stop, 2000);
       }
     }, step.delay);
 
     return () => clearTimeout(timer);
-  }, [isRunning, stepIndex, navigate]);
+  }, [isRunning, stepIndex, navigate, stop]);
 
   useEffect(() => () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
@@ -52,6 +67,16 @@ export function DemoSimulator() {
     navigate("/");
     setStepIndex(-1);
     setIsRunning(true);
+
+    // Best effort: a failure here only costs the final jump its specific case.
+    casesApi
+      .listCases({ limit: 1 })
+      .then((result: { cases: CaseSummary[] }) => {
+        caseIdRef.current = result.cases?.[0]?.case_id ?? null;
+      })
+      .catch(() => {
+        caseIdRef.current = null;
+      });
   };
 
   return (

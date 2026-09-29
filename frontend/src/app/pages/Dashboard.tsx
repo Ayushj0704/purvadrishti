@@ -17,42 +17,6 @@ import type { Alert } from "../api/alerts";
 import { StatusStrip } from "../components/layout/StatusStrip";
 import { formatCompact, formatTime } from "../lib/format";
 
-const FALLBACK_ALERT: Alert = {
-  alert_id: "A-101",
-  case_id: "C10234",
-  atm_id: "ATM-RJ-1023",
-  risk_score: 0.89,
-  confidence: "HIGH",
-  prediction_window_start: new Date().toISOString(),
-  prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-  created_at: new Date().toISOString(),
-  status: "NEW",
-};
-
-const SEED_PREDICTIONS: PredictionCandidate[] = [
-  {
-    atm_id: "ATM-RJ-1023",
-    state: "Rajasthan",
-    risk_score: 0.89,
-    risk_level: "HIGH",
-    confidence: "HIGH",
-  },
-  {
-    atm_id: "ATM-HR-2041",
-    state: "Haryana",
-    risk_score: 0.76,
-    risk_level: "HIGH",
-    confidence: "MEDIUM",
-  },
-  {
-    atm_id: "ATM-DL-0312",
-    state: "Delhi",
-    risk_score: 0.61,
-    risk_level: "MEDIUM",
-    confidence: "LOW",
-  },
-];
-
 interface Metric {
   index: string;
   label: string;
@@ -110,7 +74,7 @@ export function Dashboard() {
 
     const load = async () => {
       setIsLoading(true);
-      setPredictions(SEED_PREDICTIONS);
+      setPredictions([]);
 
       try {
         setHeatmapData(await heatmapApi.getHeatmap());
@@ -122,7 +86,7 @@ export function Dashboard() {
         const list = await alertsApi.getAlerts();
         if (!cancelled) setAlerts(list.slice(0, 5));
       } catch {
-        if (!cancelled) setAlerts([FALLBACK_ALERT]);
+        if (!cancelled) setAlerts([]);
       }
 
       if (!cancelled) {

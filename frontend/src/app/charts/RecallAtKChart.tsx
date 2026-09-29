@@ -8,11 +8,13 @@ interface RecallData {
 
 interface Props {
   data: RecallData[];
-  crossStateRecall: number;
-  precisionAt5: number;
+  /** Headline retrieval figure across the held-out split. */
+  overallRecall: number;
+  /** The operational setting: recall inside the top 5 ranked candidates. */
+  topFiveRecall: number;
 }
 
-export function RecallAtKChart({ data, crossStateRecall, precisionAt5 }: Props) {
+export function RecallAtKChart({ data, overallRecall, topFiveRecall }: Props) {
   return (
     <div className="grid gap-px bg-hairline lg:grid-cols-12">
       <div className="bg-surface px-5 py-6 lg:col-span-8">
@@ -61,25 +63,26 @@ export function RecallAtKChart({ data, crossStateRecall, precisionAt5 }: Props) 
 
       <div className="flex flex-col gap-px bg-hairline lg:col-span-4">
         <div className="flex flex-1 flex-col justify-between gap-6 bg-elevated p-5">
-          <span className="label-caps text-accent">Cross-state recall @5</span>
+          <span className="label-caps text-accent">Overall recall</span>
           <div className="display tnum text-[clamp(2.5rem,5vw,3.75rem)] text-ink">
-            {crossStateRecall.toFixed(1)}
+            {overallRecall.toFixed(1)}
             <span className="text-accent">%</span>
           </div>
           <p className="text-xs leading-relaxed text-faint">
-            Accuracy when the cash-out crosses a state border from the victim's location — the
-            case that used to end the search.
+            Share of true cash-out locations the ranking recovers at all, measured on the
+            held-out split rather than a training aggregate.
           </p>
         </div>
 
         <div className="flex flex-1 flex-col justify-between gap-6 bg-elevated p-5">
-          <span className="label-caps text-muted">Precision @5</span>
+          <span className="label-caps text-muted">Top-5 recall</span>
           <div className="display tnum text-[clamp(2rem,4vw,3rem)] text-muted">
-            {precisionAt5.toFixed(1)}
+            {topFiveRecall.toFixed(1)}
             <span className="text-faint">%</span>
           </div>
           <p className="text-xs leading-relaxed text-faint">
-            Hits inside the top 5 predicted candidates, averaged across all scored events.
+            The operational figure: true cash-outs recovered inside the five candidates a
+            field team can realistically act on.
           </p>
         </div>
       </div>

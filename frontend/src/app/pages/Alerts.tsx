@@ -13,42 +13,6 @@ import { StatusPill } from "../components/ui/StatusDot";
 import { formatTime, formatWindow } from "../lib/format";
 import { cn } from "../lib/cn";
 
-const FALLBACK_ALERTS: Alert[] = [
-  {
-    alert_id: "A-101",
-    case_id: "C10234",
-    atm_id: "ATM-RJ-1023",
-    risk_score: 0.89,
-    confidence: "HIGH",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    status: "NEW",
-  },
-  {
-    alert_id: "A-102",
-    case_id: "C10235",
-    atm_id: "ATM-HR-2041",
-    risk_score: 0.76,
-    confidence: "MEDIUM",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-    created_at: new Date(Date.now() - 1200000).toISOString(),
-    status: "NEW",
-  },
-  {
-    alert_id: "A-103",
-    case_id: "C10236",
-    atm_id: "ATM-UP-0055",
-    risk_score: 0.95,
-    confidence: "HIGH",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 1800000).toISOString(),
-    created_at: new Date(Date.now() - 3000000).toISOString(),
-    status: "ACKNOWLEDGED",
-  },
-];
-
 export function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +27,7 @@ export function Alerts() {
         const data = await alertsApi.getAlerts();
         if (!cancelled) setAlerts(data);
       } catch {
-        if (!cancelled) setAlerts(FALLBACK_ALERTS);
+        if (!cancelled) setAlerts([]);
       } finally {
         if (!cancelled) setIsLoading(false);
       }

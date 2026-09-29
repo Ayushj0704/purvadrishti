@@ -37,7 +37,7 @@ export function Login() {
       localStorage.setItem("auth_token", "demo_token_123");
       navigate("/");
     } else {
-      setError("Credentials rejected. Use investigator / demo.");
+      setError("Credentials rejected.");
     }
   };
 
@@ -49,30 +49,32 @@ export function Login() {
 
       <div className="relative z-10 mx-auto grid min-h-screen max-w-[110rem] lg:grid-cols-12">
         {/* Manifesto */}
-        <section className="flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
-          <div className="flex items-center gap-3 text-accent">
-            <Wordmark className="size-8" />
+        <section className="flex flex-col justify-start gap-10 border-hairline px-5 pb-14 sm:px-8 lg:col-span-7 lg:border-r">
+          {/* Same 4rem bar, same padding and same wordmark sizing as the console
+              nav, so the mark and word sit on one line here as they do on every
+              other page. */}
+          <div className="flex h-16 shrink-0 items-center gap-3 text-accent">
+            <Wordmark />
             <div className="flex flex-col leading-none">
-              <span className="text-base font-semibold tracking-[-0.03em] text-ink">
+              <span className="text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink">
                 PurvaDrishti
               </span>
-              <span className="eyebrow mt-1.5">Cash-out intelligence</span>
+              <span className="eyebrow mt-1">Cash-out intelligence</span>
             </div>
           </div>
 
           <div className="animate-rise">
-            <p className="eyebrow text-accent">Smart India Hackathon 26</p>
-            <h1 className="display mt-8 text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
+            <h1 className="display text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
               The money
               <br />
               leaves a trail.
               <br />
               <span className="text-accent">We read it.</span>
             </h1>
-            <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
+            <p className="mt-6 max-w-lg text-sm leading-relaxed text-muted">
               Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns a
               victim complaint into a ranked list of probable ATMs and a predicted withdrawal
-              window — before the cash is gone.
+              window, before the cash is gone.
             </p>
           </div>
 

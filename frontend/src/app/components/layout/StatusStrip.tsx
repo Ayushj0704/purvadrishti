@@ -1,5 +1,5 @@
 const TICKER = [
-  "Model XGB v0.2.0",
+  "Model XGB v0.5.0",
   "Horizons 30 / 60 / 240 / 720 min",
   "H3 resolution 8",
   "Top-K = 5",

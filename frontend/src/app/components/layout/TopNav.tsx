@@ -3,8 +3,9 @@ import { Wordmark } from "./Wordmark";
 
 const NAV_ITEMS = [
   { to: "/", label: "Overview", index: "01" },
-  { to: "/alerts", label: "Alerts", index: "02" },
-  { to: "/analytics", label: "Analytics", index: "03" },
+  { to: "/cases", label: "Cases", index: "02" },
+  { to: "/alerts", label: "Alerts", index: "03" },
+  { to: "/analytics", label: "Analytics", index: "04" },
 ];
 
 export function TopNav() {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
+import { casesApi } from "../api";
 import type { CaseSummary, PredictionResponse } from "../api/cases";
 import { ShapContributionChart } from "../charts/ShapContributionChart";
 import type { ShapFeature } from "../charts/ShapContributionChart";
@@ -13,38 +14,28 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { Skeleton } from "../components/ui/EmptyState";
+import { EmptyState, Skeleton } from "../components/ui/EmptyState";
 import { StatusPill } from "../components/ui/StatusDot";
 import { formatInr, formatWindow } from "../lib/format";
 
-const SEED_EXPLANATION: ShapFeature[] = [
-  {
-    feature_name: "Historical Similarity",
-    contribution: 0.35,
-    description: "High similarity to historical fraud-linked cash-outs",
-  },
-  {
-    feature_name: "Location Proximity",
-    contribution: 0.22,
-    description: "Close to the latest relevant transaction location",
-  },
-  {
-    feature_name: "Time of Day",
-    contribution: 0.15,
-    description: "Current time matches historical cash-out pattern",
-  },
-  {
-    feature_name: "Suspicious Activity",
-    contribution: 0.12,
-    description: "Elevated recent suspicious activity at this ATM",
-  },
-  {
-    feature_name: "Cross-State Pattern",
-    contribution: 0.08,
-    description: "Cross-state movement seen in comparable cases",
-  },
-  { feature_name: "Weekend Flag", contribution: -0.03, description: "Non-weekend slightly lowers risk" },
-];
+/** Accepts either a bare array or `{ contributions: [...] }` and keeps only well-formed rows. */
+function toShapFeatures(raw: unknown): ShapFeature[] {
+  const rows = Array.isArray(raw)
+    ? raw
+    : (raw as { contributions?: unknown } | null)?.contributions;
+  if (!Array.isArray(rows)) return [];
+  return rows.flatMap((row) => {
+    const r = row as { feature_name?: unknown; contribution?: unknown; description?: unknown };
+    if (typeof r?.feature_name !== "string" || typeof r?.contribution !== "number") return [];
+    return [
+      {
+        feature_name: r.feature_name,
+        contribution: r.contribution,
+        description: typeof r.description === "string" ? r.description : "",
+      },
+    ];
+  });
+}
 
 export function CaseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -52,32 +43,51 @@ export function CaseDetail() {
   const [predictions, setPredictions] = useState<PredictionResponse | null>(null);
   const [explanation, setExplanation] = useState<ShapFeature[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
-    setIsLoading(true);
-    setCaseData({
-      case_id: id,
-      created_at: new Date().toISOString(),
-      fraud_type: "UPI Transfer",
-      amount: 120000,
-      status: "INVESTIGATING",
-    });
-    setPredictions({
-      case_id: id,
-      prediction_window: {
-        start: new Date().toISOString(),
-        end: new Date(Date.now() + 3600000).toISOString(),
-      },
-      predictions: [
-        { atm_id: "ATM-1023", state: "Rajasthan", risk_score: 0.89, risk_level: "HIGH", confidence: "HIGH" },
-        { atm_id: "ATM-2041", state: "Haryana", risk_score: 0.76, risk_level: "HIGH", confidence: "MEDIUM" },
-        { atm_id: "ATM-0312", state: "Delhi", risk_score: 0.41, risk_level: "MEDIUM", confidence: "LOW" },
-      ],
-    });
-    setExplanation(SEED_EXPLANATION);
-    setIsLoading(false);
+    const load = async () => {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const detail = await casesApi.getCase(id);
+        if (cancelled) return;
+        setCaseData(detail);
+      } catch {
+        if (!cancelled) {
+          setCaseData(null);
+          setError(`Case ${id} could not be loaded from the API.`);
+        }
+        return;
+      }
+
+      // Everything below is produced by this deployment. Nothing is filled in
+      // client-side, so an absent result stays absent rather than becoming a fixture.
+      try {
+        const result = await casesApi.getPredictions(id);
+        if (!cancelled) setPredictions(result);
+      } catch {
+        if (!cancelled) setPredictions(null);
+      }
+
+      try {
+        const result = await casesApi.getExplanation(id);
+        if (!cancelled) setExplanation(toShapFeatures(result));
+      } catch {
+        if (!cancelled) setExplanation([]);
+      }
+
+      if (!cancelled) setIsLoading(false);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (isLoading) {
@@ -90,17 +100,12 @@ export function CaseDetail() {
   }
 
   if (!caseData) {
-    return <p className="text-sm text-critical">Case {id} not found.</p>;
+    return <EmptyState label="Case unavailable" detail={error} />;
   }
 
-  const timeline: TimelineEvent[] = [
-    { id: "1", timestamp: new Date(Date.now() - 3600000).toISOString(), description: "Suspicious transaction flagged", type: "TRANSACTION" },
-    { id: "2", timestamp: new Date(Date.now() - 3400000).toISOString(), description: "Complaint received from victim", type: "COMPLAINT" },
-    { id: "3", timestamp: new Date(Date.now() - 3200000).toISOString(), description: "Candidate locations generated", type: "GENERATION" },
-    { id: "4", timestamp: new Date(Date.now() - 3100000).toISOString(), description: "Risk predictions calculated", type: "PREDICTION" },
-    { id: "5", timestamp: new Date(Date.now() - 3000000).toISOString(), description: "High-risk alert dispatched", type: "ALERT" },
-    { id: "6", timestamp: new Date().toISOString(), description: "Investigator opened case file", type: "ACTION" },
-  ];
+  // No trail endpoint is wired up on this branch yet, so the timeline stays
+  // empty rather than showing a plausible-looking sequence of past events.
+  const timeline: TimelineEvent[] = [];
 
   const facts = [
     { label: "Fraud vector", value: caseData.fraud_type },

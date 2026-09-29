@@ -31,7 +31,7 @@ const TILES = [
     index: "03",
     title: "Ranked, with a window.",
     body: "A classifier scores each survivor and a separate regressor estimates minutes-to-cash-out. You get a place to go, and how long you have to get there.",
-    meta: ["Horizons 30720 min", "Top-K = 5"],
+    meta: ["Horizons 30–720 min", "Top-K = 5"],
   },
   {
     index: "04",
@@ -70,14 +70,14 @@ const CAPABILITIES = [
 
 const METRICS = [
   { value: 0.78, dp: 2, suffix: "", label: "ROC-AUC", note: "60-minute horizon" },
-  { value: 82.4, dp: 1, suffix: "%", label: "Top-5 recall", note: "Held-out test split" },
+  { value: 50.8, dp: 1, suffix: "%", label: "Top-5 recall", note: "Held-out test split" },
   { value: 38, dp: 0, suffix: " min", label: "Time MAE", note: "Minutes to cash-out" },
   { value: 4, dp: 0, suffix: "", label: "Horizons", note: "30 / 60 / 240 / 720 min" },
 ];
 
 const RAILS = [
-  ["Top-5 recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8", "Radius 5 km"],
-  ["Model XGB v0.2.0", "Horizons 30720 min", "Top-K = 5", "Cross-state trails on"],
+  ["Top-5 recall 50.8%", "Overall recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8"],
+  ["Model XGB v0.5.0", "Horizons 30–720 min", "Top-K = 5", "Cross-state trails on"],
   ["LEA · Bank · I4C", "Audit logged", "Authorised use only", "No live banking connections"],
 ];
 
@@ -286,7 +286,7 @@ function hero(): HTMLElement {
           "dl",
           { class: "hero-stats" },
           ...[
-            ["Top-5 recall", "82.4%"],
+            ["Top-5 recall", "50.8%"],
             ["Time MAE", "38 min"],
             ["Horizons", "4"],
           ].flatMap(([label, value]) => [
@@ -687,8 +687,6 @@ function footer(): HTMLElement {
       h(
         "p",
         { class: "footer-meta-line" },
-        "Smart India Hackathon 26 ",
-        h("span", { "aria-hidden": "true" }, "· "),
         "Predictive cash-out intelligence",
       ),
       h(

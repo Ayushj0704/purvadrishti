@@ -1,4 +1,4 @@
-import { h, svg, wordmark } from "./dom";
+﻿import { h, svg, wordmark } from "./dom";
 
 /**
  * Copy follows one rule set throughout: sentence case, two to four words per
@@ -233,25 +233,25 @@ const HERO_CARDS = [
     venue: "HDFC ATM, Nehru Place",
     note: "Two hops from the last confirmed withdrawal, both before noon.",
     score: "0.94",
-    window: "14:00  17:00",
+    window: "14:00 - 17:00",
   },
   {
     venue: "State Bank ATM, C-Scheme",
     note: "Withdrawal burst across four accounts in the same forty minutes.",
     score: "0.88",
-    window: "16:00  19:00",
+    window: "16:00 - 19:00",
   },
   {
     venue: "Axis ATM, Banaras Road",
     note: "Complaint filed in Delhi, cash expected well south of it.",
     score: "0.81",
-    window: "11:00  13:00",
+    window: "11:00 - 13:00",
   },
   {
     venue: "ICICI ATM, Sector 18",
     note: "Rank held steady overnight; no competing burst in range.",
     score: "0.76",
-    window: "19:00  22:00",
+    window: "19:00 - 22:00",
   },
 ] as const;
 
@@ -528,7 +528,6 @@ function close(): HTMLElement {
     h(
       "div",
       { class: "close-band" },
-      h("p", { class: "kicker" }, "Ready"),
       h("h2", { class: "display close-title" }, "Ready when you are."),
       h(
         "p",

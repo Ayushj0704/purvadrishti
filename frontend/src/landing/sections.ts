@@ -31,7 +31,7 @@ const TILES = [
     index: "03",
     title: "Ranked, with a window.",
     body: "A classifier scores each survivor and a separate regressor estimates minutes-to-cash-out. You get a place to go, and how long you have to get there.",
-    meta: ["Horizons 30720 min", "Top-K = 5"],
+    meta: ["Horizons 30–720 min", "Top-K = 5"],
   },
   {
     index: "04",
@@ -70,14 +70,14 @@ const CAPABILITIES = [
 
 const METRICS = [
   { value: 0.78, dp: 2, suffix: "", label: "ROC-AUC", note: "60-minute horizon" },
-  { value: 82.4, dp: 1, suffix: "%", label: "Top-5 recall", note: "Held-out test split" },
+  { value: 50.8, dp: 1, suffix: "%", label: "Top-5 recall", note: "Held-out test split" },
   { value: 38, dp: 0, suffix: " min", label: "Time MAE", note: "Minutes to cash-out" },
   { value: 4, dp: 0, suffix: "", label: "Horizons", note: "30 / 60 / 240 / 720 min" },
 ];
 
 const RAILS = [
-  ["Top-5 recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8", "Radius 5 km"],
-  ["Model XGB v0.2.0", "Horizons 30720 min", "Top-K = 5", "Cross-state trails on"],
+  ["Top-5 recall 50.8%", "Overall recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8"],
+  ["Model XGB v0.5.0", "Horizons 30–720 min", "Top-K = 5", "Cross-state trails on"],
   ["LEA · Bank · I4C", "Audit logged", "Authorised use only", "No live banking connections"],
 ];
 
@@ -286,7 +286,7 @@ function hero(): HTMLElement {
           "dl",
           { class: "hero-stats" },
           ...[
-            ["Top-5 recall", "82.4%"],
+            ["Top-5 recall", "50.8%"],
             ["Time MAE", "38 min"],
             ["Horizons", "4"],
           ].flatMap(([label, value]) => [
@@ -544,11 +544,20 @@ function close(): HTMLElement {
   );
 }
 
-/** Three zones for the footer clocks, mirroring PageFooter's ZONES. */
-const FOOTER_ZONES = [
-  { city: "Guwahati", zone: "IST", timeZone: "Asia/Kolkata", role: "Model host" },
-  { city: "London", zone: "GMT", timeZone: "Europe/London", role: "Audit desk" },
-  { city: "New York", zone: "EST", timeZone: "America/New_York", role: "Review liaison" },
+/** Handling rules, mirroring PageFooter's HANDLING list. */
+const FOOTER_HANDLING = [
+  "Authorised use only",
+  "Every action audit logged",
+  "No live banking, NCRP or I4C connections",
+  "Case data does not leave this deployment",
+];
+
+/** The same tone scale StatusPill draws, spelled out. */
+const FOOTER_STATUS = [
+  { tone: "accent", label: "Open", detail: "Logged, not yet worked" },
+  { tone: "elevated-risk", label: "Investigating", detail: "Assigned and in progress" },
+  { tone: "critical", label: "Escalated", detail: "Needs supervisor attention" },
+  { tone: "faint", label: "Closed", detail: "Outcome recorded" },
 ];
 
 const FOOTER_LINKS = [
@@ -593,6 +602,12 @@ function footer(): HTMLElement {
     h(
       "div",
       { class: "footer-block" },
+      // Operational, not promotional. This used to be a "Global telemetry
+    // clocks" row naming a model host in one timezone with audit and review
+    // desks in two others - a distributed footprint this deployment does not
+    // have. What a user of a law-enforcement console needs before handling a
+    // case is the handling rules, so that is what it says.
+
       h(
         "div",
         { class: "footer-telemetry" },
@@ -610,37 +625,18 @@ function footer(): HTMLElement {
               "stroke-width": 1.5,
               "aria-hidden": "true",
             },
-            svg("circle", { cx: 12, cy: 12, r: 9 }),
-            svg("path", { d: "M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" }),
+            svg("path", {
+              d: "M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
+            }),
+            svg("path", { d: "M9 12l2 2 4-4" }),
           ),
-          "Global telemetry clocks",
+          "Handling",
         ),
-        // One polite live region for all three rather than one per clock: three
-        // separate ticking times announced every second is unusable. Only the
-        // summary is announced, and only when it changes.
         h(
-          "div",
-          {
-            class: "footer-clocks",
-            role: "status",
-            "aria-live": "polite",
-            "aria-atomic": "true",
-          },
-          ...FOOTER_ZONES.map((zone) =>
-            h(
-              "div",
-              { class: "footer-clock" },
-              h("span", { class: "footer-clock-zone" }, `${zone.city} (${zone.zone})`),
-              h(
-                "span",
-                {
-                  class: "footer-clock-time tnum",
-                  "data-zone": zone.timeZone,
-                },
-                "--:--:--",
-              ),
-              h("span", { class: "footer-clock-role" }, zone.role),
-            ),
+          "ul",
+          { class: "footer-handling" },
+          ...FOOTER_HANDLING.map((rule) =>
+            h("li", { class: "footer-handling-item" }, rule),
           ),
         ),
       ),
@@ -670,11 +666,18 @@ function footer(): HTMLElement {
       h(
         "div",
         { class: "footer-cols" },
-        h("p", { class: "footer-head" }, "Scope"),
+        h("p", { class: "footer-head" }, "Case status"),
         h(
-          "p",
-          { class: "footer-body" },
-          "Authorised use only · Audit logged · No live banking, NCRP or I4C connections",
+          "dl",
+          { class: "footer-status" },
+          ...FOOTER_STATUS.flatMap((entry) => [
+            h(
+              "div",
+              { class: "footer-status-row" },
+              h("dt", { class: `footer-status-dot footer-status-dot-${entry.tone}` }),
+              h("dd", { class: "footer-status-text" }, entry.label, " — ", entry.detail),
+            ),
+          ]),
         ),
         h("p", { class: "footer-head footer-head-gap" }, "Built with"),
         h("p", { class: "footer-body" }, "XGBoost · H3 geospatial · FastAPI · React · Three.js"),

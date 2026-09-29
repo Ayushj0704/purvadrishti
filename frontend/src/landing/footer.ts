@@ -1,47 +1,15 @@
 /**
- * The landing page's footer behaviour: three ticking clocks and back-to-top.
+ * The landing page's footer behaviour: back-to-top.
  *
- * Sits here rather than in sections.ts because both need a disposer - an
- * interval that outlives the page is a leak, and the landing tears its WebGL
- * field down on pagehide (see main.ts), so the footer's timer has to go with it.
+ * The footer used to drive three ticking clocks from here as well. They are
+ * gone - see the handling block in sections.ts for why. Only the disposer
+ * pattern remains, and it still earns its place: the landing tears its WebGL
+ * field down on pagehide (see main.ts), so any listener attached here has to be
+ * removable with the rest of the page.
  */
-
-interface ZoneClock extends HTMLElement {
-  dataset: { zone?: string };
-}
 
 export function initFooter(root: ParentNode = document): () => void {
   const disposers: Array<() => void> = [];
-
-  // --- Clocks ------------------------------------------------------------
-  const clocks = Array.from(
-    root.querySelectorAll<ZoneClock>(".footer-clock-time[data-zone]"),
-  );
-
-  if (clocks.length) {
-    const update = (): void => {
-      const now = new Date();
-      for (const clock of clocks) {
-        const zone = clock.dataset.zone;
-        if (!zone) continue;
-        // en-GB throughout so all three read 24-hour. The console's footer uses
-        // en-US for EST, which is the one of the three that carries a meridiem;
-        // three clocks in mixed formats side by side is harder to read than
-        // three in the same one, so this page keeps them uniform.
-        clock.textContent = now.toLocaleTimeString("en-GB", {
-          timeZone: zone,
-          hour12: false,
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      }
-    };
-
-    update();
-    const timer = window.setInterval(update, 1000);
-    disposers.push(() => window.clearInterval(timer));
-  }
 
   // --- Back to top -------------------------------------------------------
   const top = root.querySelector<HTMLElement>("[data-footer-top]");

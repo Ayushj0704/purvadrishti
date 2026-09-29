@@ -1249,7 +1249,7 @@ a:hover {
 
 @media (min-width: 900px) {
   .footer-block {
-    /* 5 / 3 / 4, matching the reference's clock/nav/dispatch split. */
+    /* 5 / 3 / 4, matching PageFooter's handling/nav/status split. */
     grid-template-columns: 5fr 3fr 4fr;
     padding-inline: 2.5rem;
   }
@@ -1275,59 +1275,76 @@ a:hover {
   font-weight: 500;
 }
 
-.footer-clocks {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: 1fr;
+.footer-handling {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-@media (min-width: 480px) {
-  .footer-clocks {
-    grid-template-columns: repeat(3, 1fr);
-  }
+.footer-handling-item {
+  position: relative;
+  padding-left: 0.875rem;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
-.footer-clock {
-  padding: 1rem;
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--r-md);
-  background-color: var(--color-elevated);
+.footer-handling-item::before {
+  content: "";
+  position: absolute;
+  top: 0.4375rem;
+  left: 0;
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background-color: var(--color-accent);
 }
 
-.footer-clock-zone {
-  display: block;
-  color: var(--color-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-size: 0.625rem;
-  font-weight: 500;
+.footer-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
 }
 
-/* The digits are set in the grotesk with tabular figures rather than in mono.
-   They still hold their columns as the seconds tick, and they keep the page's
-   voice - monospace at this size reads as terminal output, not as a clock. */
-.footer-clock-time {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--color-ink);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  font-size: 1.125rem;
+.footer-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
 }
 
-@media (min-width: 480px) {
-  .footer-clock-time {
-    font-size: 1.25rem;
-  }
-}
-
-.footer-clock-role {
-  display: block;
+.footer-status-dot {
+  flex-shrink: 0;
+  width: 0.375rem;
+  height: 0.375rem;
   margin-top: 0.3125rem;
-  color: var(--color-stable);
-  font-size: 0.6875rem;
-  font-weight: 500;
+  border-radius: 50%;
+}
+
+.footer-status-dot-accent {
+  background-color: var(--color-accent);
+}
+
+.footer-status-dot-elevated-risk {
+  background-color: var(--color-elevated-risk);
+}
+
+.footer-status-dot-critical {
+  background-color: var(--color-critical);
+}
+
+.footer-status-dot-faint {
+  background-color: var(--color-faint);
+}
+
+.footer-status-text {
+  margin: 0;
+  color: var(--color-faint);
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
 .footer-cols {

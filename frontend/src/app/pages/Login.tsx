@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { Wordmark } from "../components/layout/Wordmark";
 import { Button } from "../components/ui/Button";
 import { ApiError } from "../api/client";
@@ -78,26 +78,30 @@ export function Login() {
 
       <div className="relative z-10 mx-auto grid min-h-screen max-w-[110rem] lg:grid-cols-12">
         {/* Manifesto */}
-        <section className="relative flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
-          <div className="absolute left-5 top-6 flex items-center gap-3 text-accent sm:left-8">
-            <Wordmark className="size-8" />
+        <section className="flex flex-col justify-start gap-10 border-hairline px-5 pb-14 sm:px-8 lg:col-span-7 lg:border-r">
+          {/* In flow, not absolute: the same 4rem bar, padding and wordmark sizing
+              as the console nav, so the mark and word land on one line here as
+              they do on every other page. Absolute positioning is what left this
+              one visually detached from the column it sits in. */}
+          <div className="flex h-16 shrink-0 items-center gap-3 text-accent">
+            <Wordmark />
             <div className="flex flex-col leading-none">
-              <span className="text-base font-semibold tracking-[-0.03em] text-ink">
+              <span className="text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink">
                 PurvaDrishti
               </span>
-              <span className="eyebrow mt-1.5">Cash-out intelligence</span>
+              <span className="eyebrow mt-1">Cash-out intelligence</span>
             </div>
           </div>
 
           <div className="animate-rise">
-            <h1 className="display text-[clamp(3rem,8.5vw,7.5rem)] text-ink ">
+            <h1 className="display text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
               The money
               <br />
               leaves a trail.
               <br />
               <span className="text-accent">We read it.</span>
             </h1>
-            <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
+            <p className="mt-6 max-w-lg text-sm leading-relaxed text-muted">
               Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns a
               victim complaint into a ranked list of probable ATMs and a predicted withdrawal
               window, before the cash is gone.
@@ -119,14 +123,6 @@ export function Login() {
 
         {/* Auth */}
         <section className="flex flex-col justify-center gap-6 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
-          <div className="flex items-start gap-3 rounded-lg border border-elevated-risk/40 bg-elevated-risk/15 p-4">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
-            <p className="text-xs leading-relaxed text-muted">
-              Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
-              record the console shows comes from this deployment&apos;s own API.
-            </p>
-          </div>
-
           <form
             onSubmit={handleLogin}
             className="flex flex-col gap-7 rounded-xl border border-hairline bg-surface p-6 sm:p-8"

@@ -19,9 +19,10 @@ export interface StatusStripFacts {
  * Every item here is a value the backend actually returned for this load —
  * model label, database status, counts of what the current filters matched, and
  * when the console last synced. The previous ticker was a static list of
- * marketing claims ("Model XGB v0.2.0", "Top-K = 5", "Alert channels:
- * dashboard / webhook") that no code path ever set, which made a hardcoded
- * string indistinguishable from a live one.
+ * marketing claims (a model version, "Top-K = 5", "Alert channels: dashboard /
+ * webhook") that no code path ever set, which made a hardcoded string
+ * indistinguishable from a live one. The version is now whatever the API
+ * reports rather than a constant here.
  */
 export function StatusStrip({
   facts,

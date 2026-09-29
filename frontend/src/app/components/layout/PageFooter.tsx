@@ -8,7 +8,7 @@ import { orDash } from "../../lib/format";
  * The console footer.
  *
  * Two blocks, both of them real. The earlier version of this file carried a
- * "global telemetry clocks" panel naming Guwahati as the model host and New
+ * "global telemetry clocks" panel naming a model host in another timezone and
  * York as the review liaison, plus a newsletter form that submitted to nothing
  * and printed a success receipt. None of that was wired to anything, so it is
  * gone rather than relabelled: what remains is the console's own navigation,

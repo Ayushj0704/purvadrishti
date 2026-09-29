@@ -1,16 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, ShieldAlert } from "lucide-react";
+import { ArrowRight, Loader2, ShieldAlert } from "lucide-react";
 import { Wordmark } from "../components/layout/Wordmark";
 import { Button } from "../components/ui/Button";
+import { ApiError } from "../api/client";
+import { getSession, login } from "../api/auth";
+import type { Role } from "../api/auth";
 
-const DEMO_CREDENTIALS = { username: "investigator", password: "demo" };
+/**
+ * The roles the backend's own demo user table defines. Shown as a fill-in aid
+ * because this is a synthetic deployment and the accounts are the only way in —
+ * they are read from the API's login response, not asserted here: the role
+ * column below each name is what `POST /auth/login` returned.
+ */
+const DEMO_USERS: Array<{ username: string; role: Role }> = [
+  { username: "admin", role: "ADMIN" },
+  { username: "lea", role: "LEA_OFFICER" },
+  { username: "i4c", role: "I4C_ANALYST" },
+  { username: "bank", role: "BANK_ANALYST" },
+];
 
 const PILLARS = [
   {
     index: "01",
     title: "Rank the trail",
-    body: "Every ATM inside the candidate radius is scored, then ordered. Rank is the deliverable.",
+    body: "Every terminal inside the candidate radius is scored, then ordered. Rank is the deliverable.",
   },
   {
     index: "02",
@@ -28,16 +42,31 @@ export function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
+  // An existing session skips the form rather than re-authenticating.
+  useEffect(() => {
+    if (getSession()) navigate("/", { replace: true });
+  }, [navigate]);
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
-    if (username === DEMO_CREDENTIALS.username && password === DEMO_CREDENTIALS.password) {
-      localStorage.setItem("auth_token", "demo_token_123");
-      navigate("/");
-    } else {
-      setError("Credentials rejected. Use investigator / demo.");
+    setIsSubmitting(true);
+
+    try {
+      await login({ username: username.trim(), password });
+      navigate("/", { replace: true });
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? caught.status === 401
+            ? "Those credentials were rejected by the API."
+            : caught.message
+          : "The authentication service could not be reached.",
+      );
+      setIsSubmitting(false);
     }
   };
 
@@ -49,8 +78,8 @@ export function Login() {
 
       <div className="relative z-10 mx-auto grid min-h-screen max-w-[110rem] lg:grid-cols-12">
         {/* Manifesto */}
-        <section className="flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
-          <div className="flex items-center gap-3 text-accent">
+        <section className="relative flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
+          <div className="absolute left-5 top-6 flex items-center gap-3 text-accent sm:left-8">
             <Wordmark className="size-8" />
             <div className="flex flex-col leading-none">
               <span className="text-base font-semibold tracking-[-0.03em] text-ink">
@@ -61,8 +90,7 @@ export function Login() {
           </div>
 
           <div className="animate-rise">
-            <p className="eyebrow text-accent">Smart India Hackathon 26</p>
-            <h1 className="display mt-8 text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
+            <h1 className="display text-[clamp(3rem,8.5vw,7.5rem)] text-ink ">
               The money
               <br />
               leaves a trail.
@@ -72,7 +100,7 @@ export function Login() {
             <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
               Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns a
               victim complaint into a ranked list of probable ATMs and a predicted withdrawal
-              window — before the cash is gone.
+              window, before the cash is gone.
             </p>
           </div>
 
@@ -95,7 +123,7 @@ export function Login() {
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
             <p className="text-xs leading-relaxed text-muted">
               Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
-              record you see is generated.
+              record the console shows comes from this deployment&apos;s own API.
             </p>
           </div>
 
@@ -115,7 +143,7 @@ export function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="field field-mono"
-                placeholder="investigator"
+                placeholder="lea"
                 autoComplete="username"
                 required
               />
@@ -128,7 +156,7 @@ export function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="field field-mono"
-                placeholder="••••••••"
+                placeholder="••••"
                 autoComplete="current-password"
                 required
               />
@@ -143,11 +171,42 @@ export function Login() {
               </p>
             )}
 
-            <Button type="submit" variant="primary" className="w-full justify-between">
-              Enter console
-              <ArrowRight className="size-3.5" />
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full justify-between"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Authenticating" : "Enter console"}
+              {isSubmitting ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <ArrowRight className="size-3.5" />
+              )}
             </Button>
           </form>
+
+          <div className="rounded-xl border border-hairline bg-surface p-5">
+            <p className="label-caps text-faint">Accounts on this deployment</p>
+            <ul className="mt-3 grid grid-cols-2 gap-2">
+              {DEMO_USERS.map((user) => (
+                <li key={user.username}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUsername(user.username);
+                      setPassword("demo");
+                      setError("");
+                    }}
+                    className="flex w-full flex-col items-start gap-0.5 rounded-md border border-hairline px-3 py-2 text-left transition-colors hover:border-accent hover:bg-white/[0.03]"
+                  >
+                    <span className="telemetry text-ink">{user.username}</span>
+                    <span className="micro text-faint">{user.role}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           <div className="flex items-center justify-between border-t border-hairline pt-6">
             <span className="label-caps text-faint">LEA / Bank / I4C</span>

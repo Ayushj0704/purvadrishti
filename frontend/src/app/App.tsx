@@ -3,8 +3,8 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { CaseDetail } from "./pages/CaseDetail";
+import { Cases } from "./pages/Cases";
 import { Alerts } from "./pages/Alerts";
-import { Analytics } from "./pages/Analytics";
 
 /**
  * The console half of the site. Served from /dashboard/ as its own HTML entry
@@ -22,9 +22,9 @@ function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/cases" element={<Cases />} />
           <Route path="/cases/:id" element={<CaseDetail />} />
           <Route path="/alerts" element={<Alerts />} />
-          <Route path="/analytics" element={<Analytics />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

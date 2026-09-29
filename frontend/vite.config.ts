@@ -1,8 +1,26 @@
 import { resolve } from "node:path";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 const CONSOLE_PREFIX = "/dashboard";
+
+/**
+ * Where the dev/preview proxy forwards API traffic. Read through `loadEnv`
+ * inside the config factory so a `.env` file works, not just a shell variable;
+ * defaults to the backend's own default bind address.
+ *
+ * /health and /ready are proxied alongside /api because the backend serves them
+ * at its root rather than under the /api/v1 version prefix, and keeping them
+ * same-origin in dev avoids a CORS preflight on every status poll.
+ */
+function apiProxy(env: Record<string, string>) {
+  const target = env.VITE_API_PROXY_TARGET || "http://localhost:8000";
+  return {
+    "/api": { target, changeOrigin: true },
+    "/health": { target, changeOrigin: true },
+    "/ready": { target, changeOrigin: true },
+  };
+}
 
 /**
  * Serves dashboard/index.html for client-side routes under /dashboard/.
@@ -61,43 +79,35 @@ function consoleEntryFallback(): Plugin {
  * place; scripts/check-bundle-isolation.mjs fails the build if that ever
  * changes.
  */
-export default defineConfig({
-  plugins: [react(), consoleEntryFallback()],
-  // `mpa` disables the SPA html-fallback. With the default `spa`, a request
-  // like /dashboard that does not resolve to a file silently falls back to the
-  // root index.html and shows the *landing page* at the console URL. Failing
-  // loudly is strictly better than shipping the wrong document.
-  appType: "mpa",
-  // maplibre-gl ships an ES module web worker; emit it as one so the runtime
-  // `new Worker(url, { type: "module" })` succeeds.
-  worker: {
-    format: "es",
-  },
-  build: {
-    rollupOptions: {
-      input: {
-        landing: resolve(import.meta.dirname, "index.html"),
-        app: resolve(import.meta.dirname, "dashboard/index.html"),
+export default defineConfig(({ mode }) => {
+  const proxy = apiProxy(loadEnv(mode, import.meta.dirname, ""));
+
+  return {
+    plugins: [react(), consoleEntryFallback()],
+    // `mpa` disables the SPA html-fallback. With the default `spa`, a request
+    // like /dashboard that does not resolve to a file silently falls back to
+    // the root index.html and shows the *landing page* at the console URL.
+    // Failing loudly is strictly better than shipping the wrong document.
+    appType: "mpa",
+    // maplibre-gl ships an ES module web worker; emit it as one so the runtime
+    // `new Worker(url, { type: "module" })` succeeds.
+    worker: {
+      format: "es",
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          landing: resolve(import.meta.dirname, "index.html"),
+          app: resolve(import.meta.dirname, "dashboard/index.html"),
+        },
       },
     },
-  },
-  server: {
-    // /dashboard is a real directory in dev too, so the two entries behave the
-    // same way in `vite dev` and in `vite build`.
-    fs: { allow: [".."] },
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
+    server: {
+      // /dashboard is a real directory in dev too, so the two entries behave the
+      // same way in `vite dev` and in `vite build`.
+      fs: { allow: [".."] },
+      proxy,
     },
-  },
-  preview: {
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-      },
-    },
-  },
+    preview: { proxy },
+  };
 });

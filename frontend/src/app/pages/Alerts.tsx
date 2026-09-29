@@ -1,94 +1,99 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, ArrowUpRight } from "lucide-react";
-import { alertsApi } from "../api/alerts";
+import { alertsApi, isOpen } from "../api/alerts";
 import type { Alert } from "../api/alerts";
-import { riskLevelFromScore } from "../components/ui/RiskBadge";
+import { useStreamEvents } from "../api/events";
+import type { StreamEvent } from "../api/events";
+import { ApiError } from "../api/client";
+import { hasRole } from "../api/auth";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { Skeleton, EmptyState } from "../components/ui/EmptyState";
 import { Button } from "../components/ui/Button";
 import { StatusPill } from "../components/ui/StatusDot";
-import { formatTime, formatWindow } from "../lib/format";
 import { cn } from "../lib/cn";
 
-const FALLBACK_ALERTS: Alert[] = [
-  {
-    alert_id: "A-101",
-    case_id: "C10234",
-    atm_id: "ATM-RJ-1023",
-    risk_score: 0.89,
-    confidence: "HIGH",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    status: "NEW",
-  },
-  {
-    alert_id: "A-102",
-    case_id: "C10235",
-    atm_id: "ATM-HR-2041",
-    risk_score: 0.76,
-    confidence: "MEDIUM",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-    created_at: new Date(Date.now() - 1200000).toISOString(),
-    status: "NEW",
-  },
-  {
-    alert_id: "A-103",
-    case_id: "C10236",
-    atm_id: "ATM-UP-0055",
-    risk_score: 0.95,
-    confidence: "HIGH",
-    prediction_window_start: new Date().toISOString(),
-    prediction_window_end: new Date(Date.now() + 1800000).toISOString(),
-    created_at: new Date(Date.now() - 3000000).toISOString(),
-    status: "ACKNOWLEDGED",
-  },
-];
+const SEVERITY_BAR: Record<string, string> = {
+  CRITICAL: "bg-critical",
+  HIGH: "bg-critical",
+  MEDIUM: "bg-elevated-risk",
+  LOW: "bg-stable",
+};
 
+const SEVERITY_TEXT: Record<string, string> = {
+  CRITICAL: "text-critical",
+  HIGH: "text-critical",
+  MEDIUM: "text-elevated-risk",
+  LOW: "text-stable",
+};
+
+/**
+ * Alert queue, over the five fields the endpoint returns.
+ *
+ * The table used to lead with a timestamp the API never sent — the component
+ * formatted `alert.created_at`, which was undefined, so every row rendered
+ * "Invalid Date" once the fake rows were removed. There is no raised-at column
+ * now because the record has no raised-at. Acknowledgement is optimistic and
+ * rolls back on failure, which matters here: the endpoint is role-gated, so a
+ * bank analyst gets a 403 and the row must not stay marked as done.
+ */
 export function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const data = await alertsApi.getAlerts();
-        if (!cancelled) setAlerts(data);
-      } catch {
-        if (!cancelled) setAlerts(FALLBACK_ALERTS);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleAcknowledge = useCallback(async (alertId: string) => {
-    setProcessingId(alertId);
-    const flip = (list: Alert[]) =>
-      list.map((a) => (a.alert_id === alertId ? { ...a, status: "ACKNOWLEDGED" } : a));
-
-    setAlerts((prev) => flip(prev));
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
     try {
-      await alertsApi.acknowledgeAlert(alertId);
+      setAlerts(await alertsApi.getAlerts());
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Could not load the alert queue.");
     } finally {
-      setProcessingId(null);
+      setIsLoading(false);
     }
   }, []);
 
-  const openCount = alerts.filter((a) => a.status === "NEW").length;
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const onStreamEvent = useCallback((event: StreamEvent) => {
+    if (event.event === "alert.created") void load();
+  }, [load]);
+  useStreamEvents(onStreamEvent);
+
+  const handleAcknowledge = useCallback(async (alertId: number) => {
+    setProcessingId(alertId);
+    setActionError("");
+
+    // Optimistic: the queue is a duty-officer list and the round trip should not
+    // block the next action. Rolled back below if the write does not land.
+    const previous = alerts;
+    setAlerts((prev) =>
+      prev.map((alert) => (alert.alert_id === alertId ? { ...alert, status: "ACKED" } : alert)),
+    );
+
+    try {
+      await alertsApi.acknowledgeAlert(alertId);
+    } catch (caught) {
+      setAlerts(previous);
+      if (caught instanceof ApiError && caught.isForbidden) {
+        setActionError("Acknowledging an alert requires an LEA officer role or above.");
+      } else {
+        setActionError(caught instanceof ApiError ? caught.message : "Acknowledgement failed.");
+      }
+    } finally {
+      setProcessingId(null);
+    }
+  }, [alerts]);
+
+  const openCount = alerts.filter(isOpen).length;
+  const canAcknowledge = hasRole("LEA_OFFICER");
 
   return (
     <div className="flex flex-col gap-20">
@@ -98,20 +103,28 @@ export function Alerts() {
         title={
           <>
             Signals that
-            <br />
-            need a <span className="text-accent">decision.</span>
+            <br />need a <span className="text-accent">decision.</span>
           </>
         }
-        lede="Predictions that crossed the alert threshold, newest first. Acknowledging an alert writes to the audit log and clears it from the duty officer's queue."
+        lede="Every prediction that crossed the alert threshold, with the message the model pipeline wrote. Acknowledging records the action against the audit log."
         aside={
           <div className="flex flex-wrap items-center gap-3">
             <StatusPill tone={openCount > 0 ? "critical" : "stable"} pulse={openCount > 0}>
               {openCount} unacknowledged
             </StatusPill>
-            <span className="telemetry text-faint">{alerts.length} total</span>
+            <span className="telemetry text-faint">{alerts.length} returned</span>
           </div>
         }
       />
+
+      {(error || actionError) && (
+        <p
+          role="alert"
+          className="rounded-lg border border-critical/50 bg-critical/15 px-4 py-3 text-xs text-critical"
+        >
+          {error || actionError}
+        </p>
+      )}
 
       <Reveal>
         <Panel>
@@ -130,77 +143,65 @@ export function Alerts() {
           ) : alerts.length === 0 ? (
             <EmptyState
               label="Queue clear"
-              detail="No predictions have crossed the alert threshold in this window."
-            />
+              detail="No prediction has crossed the alert threshold."
+            >
+              <Button variant="ghost" size="sm" onClick={load}>
+                Refresh
+              </Button>
+            </EmptyState>
           ) : (
             <div data-lenis-prevent className="overflow-x-auto">
               <table className="data-table min-w-[52rem]">
                 <thead>
                   <tr>
-                    <th className="w-24">Raised</th>
-                    <th>Case / terminal</th>
-                    <th>Risk</th>
-                    <th>Window</th>
-                    <th className="text-right">Action</th>
+                    <th className="w-28">Severity</th>
+                    <th>Message</th>
+                    <th className="w-24">Status</th>
+                    <th className="w-28 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {alerts.map((alert) => {
-                    const level = riskLevelFromScore(alert.risk_score);
-                    const isNew = alert.status === "NEW";
+                    const open = isOpen(alert);
                     const busy = processingId === alert.alert_id;
+                    const severity = String(alert.severity);
 
                     return (
                       <tr key={alert.alert_id}>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "h-5 w-0.5 shrink-0 rounded-full",
-                                isNew ? "bg-critical" : "bg-hairline",
-                              )}
-                            />
-                            <span className="telemetry text-faint">{formatTime(alert.created_at)}</span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <Link
-                            to={`/cases/${alert.case_id}`}
-                            className="group flex flex-col gap-1.5"
-                          >
-                            <span className="telemetry text-ink transition-colors group-hover:text-accent">
-                              {alert.atm_id}
-                            </span>
-                            <span className="text-[0.6875rem] text-faint">{alert.case_id}</span>
-                          </Link>
-                        </td>
-
                         <td>
                           <div className="flex items-center gap-3">
                             <span
                               className={cn(
                                 "h-2.5 w-[2px] rounded-full",
-                                level === "LOW"
-                                  ? "bg-stable"
-                                  : level === "MEDIUM"
-                                    ? "bg-elevated-risk"
-                                    : "bg-critical",
+                                open ? SEVERITY_BAR[severity] ?? "bg-hairline" : "bg-hairline",
                               )}
                             />
-                            <span className="label-caps text-muted">{level}</span>
-                            <span className="telemetry text-faint">
-                              {(alert.risk_score * 100).toFixed(0)}%
+                            <span className={cn("label-caps", SEVERITY_TEXT[severity] ?? "text-muted")}>
+                              {severity}
                             </span>
                           </div>
                         </td>
 
                         <td>
-                          <span className="telemetry whitespace-nowrap text-muted">
-                            {formatWindow(
-                              alert.prediction_window_start,
-                              alert.prediction_window_end,
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-sm leading-snug text-ink">{alert.message}</span>
+                            <Link
+                              to={`/cases/${alert.case_id}`}
+                              className="telemetry w-fit text-faint underline-offset-4 transition-colors hover:text-accent hover:underline"
+                            >
+                              Case {alert.case_id} · #{alert.alert_id}
+                            </Link>
+                          </div>
+                        </td>
+
+                        <td>
+                          <span
+                            className={cn(
+                              "label-caps",
+                              open ? "text-muted" : "text-stable",
                             )}
+                          >
+                            {alert.status}
                           </span>
                         </td>
 
@@ -214,11 +215,16 @@ export function Alerts() {
                               <ArrowUpRight className="size-3" />
                             </Link>
 
-                            {isNew ? (
+                            {open ? (
                               <Button
                                 size="sm"
                                 onClick={() => handleAcknowledge(alert.alert_id)}
                                 disabled={busy}
+                                title={
+                                  canAcknowledge
+                                    ? undefined
+                                    : "Requires an LEA officer role or above"
+                                }
                               >
                                 <Check className="size-3" />
                                 {busy ? "Saving" : "Acknowledge"}
@@ -226,7 +232,7 @@ export function Alerts() {
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-stable">
                                 <Check className="size-3" />
-                                Acknowledged
+                                Done
                               </span>
                             )}
                           </div>

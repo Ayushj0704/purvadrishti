@@ -1,141 +1,144 @@
-import { useCallback, useEffect, useState } from "react";
-import type * as GeoJSON from "geojson";
-import { FilterBar } from "../components/FilterBar";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FilterBar, toHotspotFilters } from "../components/FilterBar";
 import type { FilterState } from "../components/FilterBar";
 import { RiskMap } from "../map/RiskMap";
-import { TopKTable } from "../components/TopKTable";
+import { HotspotTable } from "../components/HotspotTable";
 import { AlertRow } from "../components/AlertRow";
 import { PageHeader } from "../components/ui/PageHeader";
 import { FolderFloat } from "../components/ui/FolderFloat";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
+import { MetricRow } from "../components/ui/MetricBlock";
 import { StatusPill } from "../components/ui/StatusDot";
-import { heatmapApi, alertsApi } from "../api";
-import type { PredictionCandidate } from "../api/cases";
+import { Button } from "../components/ui/Button";
+import { heatmapApi, toHotspotLayers } from "../api/heatmap";
+import type { HotspotCell } from "../api/heatmap";
+import { alertsApi, isOpen } from "../api/alerts";
 import type { Alert } from "../api/alerts";
+import { casesApi } from "../api/cases";
+import type { CaseSummary } from "../api/cases";
+import { healthApi, isModelLoaded } from "../api/health";
+import type { Health } from "../api/health";
+import { ApiError } from "../api/client";
+import { useStreamEvents } from "../api/events";
+import type { StreamEvent } from "../api/events";
 import { StatusStrip } from "../components/layout/StatusStrip";
-import { formatCompact, formatTime } from "../lib/format";
+import { formatTime } from "../lib/format";
 
-const FALLBACK_ALERT: Alert = {
-  alert_id: "A-101",
-  case_id: "C10234",
-  atm_id: "ATM-RJ-1023",
-  risk_score: 0.89,
-  confidence: "HIGH",
-  prediction_window_start: new Date().toISOString(),
-  prediction_window_end: new Date(Date.now() + 3600000).toISOString(),
-  created_at: new Date().toISOString(),
-  status: "NEW",
-};
-
-const SEED_PREDICTIONS: PredictionCandidate[] = [
-  {
-    atm_id: "ATM-RJ-1023",
-    state: "Rajasthan",
-    risk_score: 0.89,
-    risk_level: "HIGH",
-    confidence: "HIGH",
-  },
-  {
-    atm_id: "ATM-HR-2041",
-    state: "Haryana",
-    risk_score: 0.76,
-    risk_level: "HIGH",
-    confidence: "MEDIUM",
-  },
-  {
-    atm_id: "ATM-DL-0312",
-    state: "Delhi",
-    risk_score: 0.61,
-    risk_level: "MEDIUM",
-    confidence: "LOW",
-  },
-];
-
-interface Metric {
-  index: string;
-  label: string;
-  value: string;
-  unit?: string;
-  delta?: { value: string; direction: "up" | "down" | "flat" };
-  note?: string;
-}
-
-const METRICS: Metric[] = [
-  {
-    index: "A",
-    label: "Active alerts",
-    value: "17",
-    delta: { value: "+3 / 1h", direction: "down" },
-    note: "Requires investigator review",
-  },
-  {
-    index: "B",
-    label: "High-risk zones",
-    value: "8",
-    delta: { value: "−1 / 24h", direction: "up" },
-    note: "H3 resolution 8 cells",
-  },
-  {
-    index: "C",
-    label: "Cases analysed",
-    value: formatCompact(12483),
-    note: "Trailing 30 days",
-  },
-  {
-    index: "D",
-    label: "Avg lead time",
-    value: "18",
-    unit: "min",
-    delta: { value: "Stable", direction: "flat" },
-    note: "Complaint to cash-out",
-  },
-];
-
+/**
+ * Operations overview.
+ *
+ * Every panel is fed by a live call. The metrics row was previously four
+ * hardcoded constants — "17 active alerts", "12,483 cases analysed", "18 min
+ * average lead time" — that no request could ever change, so the page reported
+ * a fictional operation. What is here now is countable: alerts the API
+ * returned, cells the current filters matched, cases the list endpoint returned,
+ * and the model label from /health.
+ */
 export function Dashboard() {
-  const [, setFilters] = useState<FilterState | null>(null);
-  const [heatmapData, setHeatmapData] = useState<GeoJSON.FeatureCollection | undefined>();
+  const [filters, setFilters] = useState<FilterState | null>(null);
+  const [cells, setCells] = useState<HotspotCell[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [predictions, setPredictions] = useState<PredictionCandidate[]>([]);
+  const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [health, setHealth] = useState<Health | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [syncedAt, setSyncedAt] = useState(() => new Date());
 
-  const handleFilterChange = useCallback((next: FilterState) => {
-    setFilters(next);
+  const handleFilterChange = useCallback((next: FilterState) => setFilters(next), []);
+
+  const load = useCallback(async (active: FilterState) => {
+    setIsLoading(true);
+    setError("");
+
+    // Each panel settles independently: a failing hotspot query must not blank
+    // the alert queue, and neither may substitute a placeholder for its data.
+    const results = await Promise.allSettled([
+      heatmapApi.getHotspots(toHotspotFilters(active)),
+      alertsApi.getAlerts(),
+      casesApi.listCases(),
+      healthApi.getHealth(),
+    ]);
+
+    const [hotspots, alertList, caseList, healthResult] = results;
+
+    if (hotspots.status === "fulfilled") {
+      setCells(hotspots.value.cells);
+    } else if (hotspots.reason instanceof ApiError && !hotspots.reason.isUnauthorized) {
+      setCells([]);
+    }
+
+    if (alertList.status === "fulfilled") setAlerts(alertList.value);
+    if (caseList.status === "fulfilled") setCases(caseList.value);
+    if (healthResult.status === "fulfilled") setHealth(healthResult.value);
+
+    const failure = results.find(
+      (result) =>
+        result.status === "rejected" &&
+        result.reason instanceof ApiError &&
+        !result.reason.isUnauthorized,
+    );
+    if (failure && failure.status === "rejected" && failure.reason instanceof ApiError) {
+      setError(failure.reason.message);
+    }
+
+    setSyncedAt(new Date());
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    if (filters) void load(filters);
+  }, [filters, load]);
 
-    const load = async () => {
-      setIsLoading(true);
-      setPredictions(SEED_PREDICTIONS);
-
-      try {
-        setHeatmapData(await heatmapApi.getHeatmap());
-      } catch {
-        if (!cancelled) setHeatmapData(undefined);
-      }
-
-      try {
-        const list = await alertsApi.getAlerts();
-        if (!cancelled) setAlerts(list.slice(0, 5));
-      } catch {
-        if (!cancelled) setAlerts([FALLBACK_ALERT]);
-      }
-
-      if (!cancelled) {
-        setSyncedAt(new Date());
-        setIsLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
+  // A new alert arriving over the stream refreshes the queue it belongs to, so
+  // the operator sees it without a manual reload. The hotspot layer is left
+  // alone — it is scoped by the filter bar and would re-query on every event.
+  const onStreamEvent = useCallback((event: StreamEvent) => {
+    if (event.event !== "alert.created") return;
+    void alertsApi
+      .getAlerts()
+      .then(setAlerts)
+      .catch(() => {
+        /* the panel keeps the last good list rather than clearing it */
+      });
   }, []);
+  useStreamEvents(onStreamEvent);
+
+  const layers = useMemo(() => toHotspotLayers(cells), [cells]);
+
+  const openAlerts = alerts.filter(isOpen).length;
+  const highRisk = cells.filter(
+    (cell) => cell.risk_level === "CRITICAL" || cell.risk_level === "HIGH",
+  ).length;
+  const modelLabel = health ? health.model : "unknown";
+
+  const metrics = [
+    {
+      index: "A",
+      label: "Open alerts",
+      value: alerts.length === 0 && isLoading ? "—" : String(openAlerts),
+      note: `${alerts.length} returned by the alert queue`,
+    },
+    {
+      index: "B",
+      label: "High-risk cells",
+      value: cells.length === 0 && isLoading ? "—" : String(highRisk),
+      note: `of ${cells.length} cells matching filters`,
+    },
+    {
+      index: "C",
+      label: "Cases returned",
+      value: cases.length === 0 && isLoading ? "—" : String(cases.length),
+      note: "Rows from the case list, not a database total",
+    },
+    {
+      index: "D",
+      label: "Model",
+      value: isModelLoaded(health) ? "XGB" : health ? "Heuristic" : "—",
+      note: `Database ${health ? health.database : "unknown"}`,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-20">
@@ -147,13 +150,13 @@ export function Dashboard() {
             cash-out <span className="text-accent">intelligence.</span>
           </>
         }
-        lede="Live ranking of probable ATM withdrawal locations and predicted windows, derived from complaint trails and scored across every candidate inside the search radius."
+        lede="Live risk aggregation across every scored candidate cell, with the alert queue and the case load the backend is currently reporting."
         leadClassName="lg:pl-10 xl:pl-16"
         titleClassName="text-[clamp(3.25rem,8.5vw,7.5rem)]"
         aside={
           <div className="flex flex-wrap items-center gap-3">
-            <StatusPill tone={isLoading ? "accent" : "stable"} pulse={!isLoading}>
-              {isLoading ? "Syncing" : "Pipeline live"}
+            <StatusPill tone={isLoading ? "accent" : error ? "warning" : "stable"} pulse={isLoading}>
+              {isLoading ? "Syncing" : error ? "Degraded" : "Live"}
             </StatusPill>
             <span className="telemetry text-faint">Synced {formatTime(syncedAt)}</span>
           </div>
@@ -161,12 +164,9 @@ export function Dashboard() {
         figure={
           <FolderFloat
             label="Live metrics"
-            sublabel={`${METRICS.length} metrics`}
+            sublabel={`${metrics.length} metrics`}
             trigger="click"
-            items={METRICS.map((metric) => ({
-              label: `${metric.index} · ${metric.label} ${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`,
-              value: metric.value,
-            }))}
+            items={metrics.map((metric) => ({ label: metric.label, value: metric.value }))}
             width={282}
             height={208}
             radius={19}
@@ -184,8 +184,33 @@ export function Dashboard() {
       />
 
       <Reveal>
-        <StatusStrip className="-mx-5 sm:-mx-8" />
+        <MetricRow items={metrics} />
       </Reveal>
+
+      <Reveal>
+        <StatusStrip
+          className="-mx-5 sm:-mx-8"
+          facts={{
+            model: modelLabel,
+            database: health ? health.database : "unknown",
+            cells: cells.length,
+            openAlerts,
+            totalAlerts: alerts.length,
+            cases: cases.length,
+            syncedAt,
+            reachable: health !== null,
+          }}
+        />
+      </Reveal>
+
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg border border-critical/50 bg-critical/15 px-4 py-3 text-xs text-critical"
+        >
+          {error}
+        </p>
+      )}
 
       <Reveal>
         <FilterBar onFilterChange={handleFilterChange} />
@@ -196,7 +221,7 @@ export function Dashboard() {
           index="02"
           label="Geospatial layer"
           title="Where the money surfaces."
-          description="Risk is aggregated into H3 cells and weighted by active case volume. The basemap is desaturated so signal is the only colour on screen."
+          description="Predictions aggregated into H3 cells and coloured by the model's own risk level. The basemap is desaturated so signal is the only colour on screen."
         />
 
         <div className="grid gap-8 xl:grid-cols-12">
@@ -205,17 +230,28 @@ export function Dashboard() {
               <PanelHeader
                 index="02.1"
                 title="National risk heatmap"
-                meta={<span className="label-caps tnum text-faint">H3 · res 8</span>}
+                meta={
+                  <span className="label-caps tnum text-faint">
+                    {layers.polygons.features.length} cells
+                    {layers.points.features.length > 0 &&
+                      ` · ${layers.points.features.length} points`}
+                    {layers.skipped > 0 && ` · ${layers.skipped} unmapped`}
+                  </span>
+                }
               />
               <div className="h-[clamp(24rem,52vh,40rem)]">
-                <RiskMap heatmapData={heatmapData} />
+                <RiskMap
+                  polygons={layers.polygons}
+                  points={layers.points}
+                  isLoading={isLoading}
+                />
               </div>
             </Panel>
           </Reveal>
 
           <div className="flex flex-col gap-8 xl:col-span-4">
             <Reveal delay={80}>
-              <TopKTable predictions={predictions} isLoading={isLoading} index="03" />
+              <HotspotTable cells={cells} isLoading={isLoading} index="03" />
             </Reveal>
 
             <Reveal delay={160} className="flex-1">
@@ -223,14 +259,23 @@ export function Dashboard() {
                 <PanelHeader
                   index="04"
                   title="Latest alerts"
-                  meta={
-                    <span className="label-caps tnum text-faint">{alerts.length} live</span>
-                  }
+                  meta={<span className="label-caps tnum text-faint">{alerts.length} live</span>}
                 />
                 {alerts.length > 0 ? (
-                  alerts.map((alert) => <AlertRow key={alert.alert_id} alert={alert} />)
+                  alerts
+                    .slice(0, 6)
+                    .map((alert) => <AlertRow key={alert.alert_id} alert={alert} />)
                 ) : (
-                  <p className="px-5 py-10 text-center text-xs text-faint">No active alerts.</p>
+                  <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                    <p className="label-caps text-muted">
+                      {isLoading ? "Loading alerts" : "Queue clear"}
+                    </p>
+                    {!isLoading && (
+                      <Button variant="ghost" size="sm" onClick={() => filters && load(filters)}>
+                        Refresh
+                      </Button>
+                    )}
+                  </div>
                 )}
               </Panel>
             </Reveal>

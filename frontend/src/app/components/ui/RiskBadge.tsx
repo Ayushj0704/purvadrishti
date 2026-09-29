@@ -1,5 +1,10 @@
 import { cn } from "../../lib/cn";
 
+/**
+ * The four levels the backend's own classifier emits. There is deliberately no
+ * score-to-level helper here: thresholds live in the model, and a client-side
+ * copy of them would drift from whatever version the server is actually running.
+ */
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW" | "CRITICAL";
 
 const TONE: Record<RiskLevel, { text: string; border: string; bg: string; bar: string }> = {
@@ -55,11 +60,4 @@ export function RiskBadge({ level, score, className }: RiskBadgeProps) {
       )}
     </span>
   );
-}
-
-export function riskLevelFromScore(score: number): RiskLevel {
-  if (score >= 0.85) return "CRITICAL";
-  if (score >= 0.7) return "HIGH";
-  if (score >= 0.5) return "MEDIUM";
-  return "LOW";
 }

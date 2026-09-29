@@ -12,15 +12,18 @@ import { candidateAtmLayer } from "./markers";
 setWorkerUrl(maplibreWorkerUrl);
 
 interface RiskMapProps {
-  heatmapData?: GeoJSON.FeatureCollection;
-  candidateAtms?: GeoJSON.FeatureCollection;
+  /** H3 cell boundaries derived from the hotspot index. */
+  polygons?: GeoJSON.FeatureCollection;
+  /** Terminals the backend resolved only to a coordinate, not a cell. */
+  points?: GeoJSON.FeatureCollection;
   viewState?: { longitude: number; latitude: number; zoom: number };
   onMove?: (evt: unknown) => void;
+  isLoading?: boolean;
 }
 
 const DEFAULT_VIEW_STATE = { longitude: 78.9629, latitude: 22.5937, zoom: 4.2 };
 
-export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskMapProps) {
+export function RiskMap({ polygons, points, viewState, onMove, isLoading }: RiskMapProps) {
   // Grayscale raster basemap keeps the risk layers as the only colour on the map.
   const mapStyle = useMemo(
     () => ({
@@ -61,18 +64,30 @@ export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskM
         <NavigationControl position="top-right" showCompass={false} />
         <ScaleControl position="bottom-left" unit="metric" />
 
-        {heatmapData && (
-          <Source id="h3-cells" type="geojson" data={heatmapData}>
+        {polygons && polygons.features.length > 0 && (
+          <Source id="h3-cells" type="geojson" data={polygons}>
             <Layer {...h3LayerStyle} />
           </Source>
         )}
 
-        {candidateAtms && (
-          <Source id="candidate-atms" type="geojson" data={candidateAtms}>
+        {points && points.features.length > 0 && (
+          <Source id="candidate-atms" type="geojson" data={points}>
             <Layer {...candidateAtmLayer} />
           </Source>
         )}
       </Map>
+
+      {isLoading && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-void/40 backdrop-blur-[1px]">
+          <span className="label-caps text-muted">Loading risk layer</span>
+        </div>
+      )}
+
+      {polygons && polygons.features.length === 0 && points && points.features.length === 0 && !isLoading && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <p className="label-caps text-faint">No cells to plot for these filters</p>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col items-end gap-1">
         <div className="flex items-center gap-2 rounded-lg border border-hairline bg-surface/90 px-2.5 py-1.5 backdrop-blur">

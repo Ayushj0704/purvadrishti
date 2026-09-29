@@ -687,8 +687,6 @@ function footer(): HTMLElement {
       h(
         "p",
         { class: "footer-meta-line" },
-        "Smart India Hackathon 26 ",
-        h("span", { "aria-hidden": "true" }, "· "),
         "Predictive cash-out intelligence",
       ),
       h(

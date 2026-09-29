@@ -1,19 +1,62 @@
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Wordmark } from "./Wordmark";
+import { clearSession, getRole } from "../../api/auth";
+import { healthApi } from "../../api/health";
+import type { Health } from "../../api/health";
+import { useStreamStatus } from "../../api/events";
+import { StatusDot } from "../ui/StatusDot";
 
 const NAV_ITEMS = [
   { to: "/", label: "Overview", index: "01" },
   { to: "/alerts", label: "Alerts", index: "02" },
-  { to: "/analytics", label: "Analytics", index: "03" },
+  { to: "/cases", label: "Cases", index: "03" },
 ];
+
+/**
+ * Health and the event stream are separate signals and are reported as such.
+ * The dot reflects the stream — that is the "are we receiving alerts right now"
+ * question — while the model label beside it comes from /health, so a backend
+ * running its heuristic fallback is visibly different from one running the
+ * trained model even when both are perfectly reachable.
+ */
+function useBackendStatus(): { health: Health | null; stream: ReturnType<typeof useStreamStatus> } {
+  const stream = useStreamStatus();
+  const [health, setHealth] = useState<Health | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    healthApi
+      .getHealth()
+      .then((value) => {
+        if (!cancelled) setHealth(value);
+      })
+      .catch(() => {
+        // Health failing is a status, not an error to surface here; the strip
+        // reports the backend as unreachable and the pages show their own
+        // failures with the real message.
+        if (!cancelled) setHealth(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { health, stream };
+}
 
 export function TopNav() {
   const navigate = useNavigate();
+  const { health, stream } = useBackendStatus();
 
   const handleSignOut = () => {
-    localStorage.removeItem("auth_token");
-    navigate("/login");
+    clearSession();
+    navigate("/login", { replace: true });
   };
+
+  const live = stream === "live";
+  const label = live ? "Live" : stream === "reconnecting" ? "Reconnecting" : "Connecting";
+  const model = health ? health.model : "unreachable";
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 bg-transparent backdrop-blur-md">
@@ -57,18 +100,20 @@ export function TopNav() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <div className="label-caps hidden items-center gap-2 rounded-full border border-hairline px-3 py-2 text-muted sm:flex">
-            <span className="relative inline-flex size-1.5">
-              <span className="absolute inset-0 rounded-full bg-stable animate-ping-slow" />
-              <span className="relative size-1.5 rounded-full bg-stable" />
-            </span>
-            Live
+          <div
+            className="label-caps hidden items-center gap-2 rounded-full border border-hairline px-3 py-2 text-muted sm:flex"
+            title={`Model: ${model}`}
+          >
+            <StatusDot tone={live ? "stable" : "warning"} pulse={live} />
+            {label}
+            <span className="text-faint">· {model}</span>
           </div>
           <button
             onClick={handleSignOut}
             className="label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors duration-200 hover:border-[#2e2e3a] hover:bg-white/[0.03] hover:text-ink"
           >
             Sign out
+            <span className="ml-2 text-faint">{getRole() ?? ""}</span>
           </button>
         </div>
       </div>

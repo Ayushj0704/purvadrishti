@@ -1,84 +1,94 @@
-import { Link } from "react-router-dom";
 import type { PredictionCandidate } from "../api/cases";
-import { RiskBadge, riskLevelFromScore } from "./ui/RiskBadge";
+import { RiskBadge } from "./ui/RiskBadge";
 import { EmptyState, Skeleton } from "./ui/EmptyState";
 import { Panel, PanelHeader } from "./ui/Panel";
+import { formatPercent } from "../lib/format";
 import { cn } from "../lib/cn";
 
-interface TopKTableProps {
-  predictions: PredictionCandidate[];
-  isLoading?: boolean;
-  caseId?: string;
-  title?: string;
-  index?: string;
-}
-
+/**
+ * Ranked cash-out candidates for a single case — the Top-K output of
+ * POST /cases/{id}/predictions. Risk levels are the backend's own
+ * classification; the score is shown beside it, never used to derive one.
+ *
+ * The ATM column is plain text because the prediction is already scoped to the
+ * case being viewed — there is no terminal detail route to send it to.
+ */
 export function TopKTable({
   predictions,
   isLoading,
-  caseId,
   title = "Ranked cash-out candidates",
   index = "02",
-}: TopKTableProps) {
+}: {
+  predictions: PredictionCandidate[];
+  isLoading?: boolean;
+  title?: string;
+  index?: string;
+}) {
   return (
     <Panel>
       <PanelHeader
         index={index}
         title={title}
-        meta={<span className="label-caps tnum text-faint">Top {predictions.length || "–"}</span>}
+        meta={<span className="label-caps tnum text-faint">{predictions.length} ranked</span>}
       />
 
       {isLoading ? (
         <Skeleton rows={4} />
       ) : predictions.length === 0 ? (
-        <EmptyState label="No candidates scored" detail="Awaiting a complaint to seed the model." />
+        <EmptyState
+          label="No candidates scored"
+          detail="Run the prediction to score every candidate terminal for this case."
+        />
       ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className="w-12">Rank</th>
-              <th>ATM</th>
-              <th className="hidden sm:table-cell">State</th>
-              <th>Risk</th>
-              <th className="text-right">Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {predictions.map((p, idx) => {
-              const level = p.risk_level ?? riskLevelFromScore(p.risk_score);
-              return (
-                <tr key={p.atm_id}>
+        <div data-lenis-prevent className="overflow-x-auto">
+          <table className="data-table min-w-[40rem]">
+            <thead>
+              <tr>
+                <th className="w-12">Rank</th>
+                <th>ATM</th>
+                <th className="hidden sm:table-cell">H3 cell</th>
+                <th>Window</th>
+                <th>Risk</th>
+                <th className="text-right">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {predictions.map((prediction, index) => (
+                <tr key={prediction.atm_id}>
                   <td>
-                    <span className={cn("label-caps tnum", idx === 0 ? "text-accent" : "text-faint")}>
-                      {String(idx + 1).padStart(2, "0")}
+                    <span
+                      className={cn(
+                        "label-caps tnum",
+                        index === 0 ? "text-accent" : "text-faint",
+                      )}
+                    >
+                      {String(index + 1).padStart(2, "0")}
                     </span>
                   </td>
                   <td>
-                    {caseId ? (
-                      <Link
-                        to={`/cases/${caseId}?atm=${encodeURIComponent(p.atm_id)}`}
-                        className="telemetry text-ink transition-colors hover:text-accent"
-                      >
-                        {p.atm_id}
-                      </Link>
-                    ) : (
-                      <span className="telemetry text-ink">{p.atm_id}</span>
-                    )}
+                    <span className="telemetry text-ink">{prediction.atm_id}</span>
                   </td>
                   <td className="hidden sm:table-cell">
-                    <span className="text-xs text-muted">{p.state || "—"}</span>
+                    <span className="text-xs text-muted">{prediction.h3_cell || "—"}</span>
                   </td>
                   <td>
-                    <RiskBadge level={level} />
+                    <span className="telemetry whitespace-nowrap text-muted">
+                      {prediction.predicted_window}
+                    </span>
+                  </td>
+                  <td>
+                    <RiskBadge level={prediction.risk_level} />
                   </td>
                   <td className="text-right">
-                    <span className="value tnum text-ink">{(p.risk_score * 100).toFixed(1)}%</span>
+                    <span className="value tnum text-ink">
+                      {formatPercent(prediction.score)}
+                    </span>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Panel>
   );

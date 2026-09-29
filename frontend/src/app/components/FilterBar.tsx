@@ -1,32 +1,38 @@
 import { useEffect, useState } from "react";
-
 import { GlideSelect } from "./ui/GlideSelect";
 
+/**
+ * Query controls for the risk layer.
+ *
+ * Every control here maps to a parameter GET /risk/hotspots actually accepts:
+ * hours_back, state, risk, min_score. The previous version also offered a crime
+ * vector and a case status, which the endpoint ignores — selecting either
+ * looked like it was narrowing the map while the data came back unchanged.
+ */
 export interface FilterState {
-  timeWindow: string;
+  hoursBack: string;
   state: string;
-  crimeType: string;
-  riskLevel: string;
-  caseStatus: string;
+  risk: string;
+  minScore: string;
 }
 
-const DEFAULTS: FilterState = {
-  timeWindow: "24h",
+export const DEFAULT_FILTERS: FilterState = {
+  hoursBack: "24",
   state: "ALL",
-  crimeType: "ALL",
-  riskLevel: "ALL",
-  caseStatus: "OPEN",
+  risk: "ALL",
+  minScore: "0",
 };
 
 const GROUPS: Array<{ key: keyof FilterState; label: string; options: Array<[string, string]> }> = [
   {
-    key: "timeWindow",
+    key: "hoursBack",
     label: "Window",
     options: [
-      ["1h", "Last 1h"],
-      ["24h", "Last 24h"],
-      ["7d", "Last 7d"],
-      ["30d", "Last 30d"],
+      ["1", "Last 1h"],
+      ["24", "Last 24h"],
+      ["72", "Last 72h"],
+      ["168", "Last 7d"],
+      ["", "All time"],
     ],
   },
   {
@@ -34,53 +40,50 @@ const GROUPS: Array<{ key: keyof FilterState; label: string; options: Array<[str
     label: "State",
     options: [
       ["ALL", "All states"],
-      ["DL", "Delhi"],
-      ["HR", "Haryana"],
-      ["RJ", "Rajasthan"],
-      ["UP", "Uttar Pradesh"],
-      ["PB", "Punjab"],
-      ["MH", "Maharashtra"],
+      ["Delhi", "Delhi"],
+      ["Haryana", "Haryana"],
+      ["Rajasthan", "Rajasthan"],
+      ["Uttar Pradesh", "Uttar Pradesh"],
+      ["Punjab", "Punjab"],
+      ["Maharashtra", "Maharashtra"],
+      ["Karnataka", "Karnataka"],
     ],
   },
   {
-    key: "crimeType",
-    label: "Vector",
-    options: [
-      ["ALL", "All vectors"],
-      ["UPI", "UPI fraud"],
-      ["CC", "Card fraud"],
-      ["PHISHING", "Phishing"],
-      ["NETBANKING", "Net banking"],
-    ],
-  },
-  {
-    key: "riskLevel",
+    key: "risk",
     label: "Risk",
     options: [
       ["ALL", "Any risk"],
+      ["CRITICAL", "Critical"],
       ["HIGH", "High"],
       ["MEDIUM", "Medium"],
       ["LOW", "Low"],
     ],
   },
   {
-    key: "caseStatus",
-    label: "Status",
+    key: "minScore",
+    label: "Min score",
     options: [
-      ["ALL", "Any status"],
-      ["OPEN", "Open"],
-      ["INVESTIGATING", "Investigating"],
-      ["CLOSED", "Closed"],
+      ["0", "Any score"],
+      ["0.5", "0.50+"],
+      ["0.7", "0.70+"],
+      ["0.85", "0.85+"],
     ],
   },
 ];
 
-interface FilterBarProps {
-  onFilterChange: (filters: FilterState) => void;
+/** Converts UI state to the endpoint's parameters, dropping untouched defaults. */
+export function toHotspotFilters(filters: FilterState) {
+  return {
+    hoursBack: filters.hoursBack ? Number(filters.hoursBack) : undefined,
+    state: filters.state,
+    risk: filters.risk,
+    minScore: Number(filters.minScore),
+  };
 }
 
-export function FilterBar({ onFilterChange }: FilterBarProps) {
-  const [filters, setFilters] = useState<FilterState>(DEFAULTS);
+export function FilterBar({ onFilterChange }: { onFilterChange: (filters: FilterState) => void }) {
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
 
   useEffect(() => {
     onFilterChange(filters);
@@ -90,8 +93,8 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const reset = () => setFilters(DEFAULTS);
-  const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULTS);
+  const reset = () => setFilters(DEFAULT_FILTERS);
+  const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
 
   return (
     <div className="panel">
@@ -106,7 +109,7 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-4">
         {GROUPS.map((group) => (
           <div key={group.key} className="flex flex-col gap-2 bg-surface p-4">
             <span className="label-caps text-faint">{group.label}</span>

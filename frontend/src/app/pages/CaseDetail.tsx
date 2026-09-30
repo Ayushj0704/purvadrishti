@@ -149,6 +149,17 @@ export function CaseDetail() {
     };
   }, [id, caseData, horizon, writable]);
 
+  const rows = predictions ? toTopKRows(predictions.predictions) : [];
+  // NOTE: hooks must stay above every early return — a memo placed after
+  // `if (isLoading) return …` renders more hooks on later passes (React #310).
+  const atmPoints = useMemo(() => {
+    const heatByAtm = new Map(
+      (predictions?.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
+    );
+    const list = rows.map((r) => ({ ...r, heat_level: heatByAtm.get(r.atm_id) ?? "LOW" }));
+    return toAtmPoints(list);
+  }, [rows, predictions]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-10">
@@ -162,14 +173,6 @@ export function CaseDetail() {
     return <p className="text-sm text-critical">Case {id} not found.</p>;
   }
 
-  const rows = predictions ? toTopKRows(predictions.predictions) : [];
-  const atmPoints = useMemo(() => {
-    const heatByAtm = new Map(
-      (predictions?.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
-    );
-    for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
-    return toAtmPoints(rows);
-  }, [rows, predictions]);
   const featureMeta = modelVersion === "" ? "model features" : modelVersion;
   const top = predictions?.predictions[0];
   const windowLabel = top?.expected_between

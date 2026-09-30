@@ -7,7 +7,7 @@ export const candidateAtmLayer: Omit<CircleLayerSpecification, "source"> = {
   id: "candidate-atm-layer",
   type: "circle",
   paint: {
-    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 3, 10, 7],
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 6, 10, 9],
     "circle-color": [
       "match",
       ["get", "risk_level"],
@@ -21,7 +21,7 @@ export const candidateAtmLayer: Omit<CircleLayerSpecification, "source"> = {
       "#10b981",
       "#3d3d48",
     ],
-    "circle-opacity": 0.28,
+    "circle-opacity": 0.55,
     "circle-stroke-color": [
       "match",
       ["get", "risk_level"],
@@ -47,7 +47,7 @@ export const burstAtmLayer: Omit<CircleLayerSpecification, "source"> = {
   type: "circle",
   filter: ["==", ["get", "heat_level"], "HIGH"],
   paint: {
-    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 5, 10, 10],
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 8, 10, 12],
     "circle-color": "#f59e0b",
     "circle-opacity": 0.85,
     "circle-stroke-color": "#0c0c0f",

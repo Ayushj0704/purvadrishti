@@ -337,7 +337,17 @@ export function FolderFloat({
     const tick = (now: number) => {
       const s = world.current;
       if (!s.engine) return;
-      const dt = s.last ? Math.min(32, now - s.last) : 16;
+      // Hidden tab: keep the loop scheduled but do zero work and reset the
+      // clock — otherwise returning feeds a giant delta into Matter (the
+      // "delta > 16.667ms" warning and multi-second frame stalls).
+      if (document.hidden) {
+        s.last = 0;
+        s.raf = requestAnimationFrame(tick);
+        return;
+      }
+      // Fixed-step clamp: Matter stays stable at ≤ one 60fps step no matter
+      // how janky the frame budget gets.
+      const dt = s.last ? Math.min(1000 / 60, Math.max(now - s.last, 0)) : 1000 / 60;
       s.last = now;
       const t = (now - s.t0) / 1000;
       const k = latest.current.drift * 0.00005 * Math.min(1, t / 2);

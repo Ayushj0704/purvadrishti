@@ -194,15 +194,19 @@
      case facts, filter bar) sit flush against a rounded frame instead of
      bleeding square corners over the curve. */
   .panel {
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-hairline);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    backdrop-filter: blur(18px) saturate(1.25);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
   .panel-raised {
-    background-color: var(--color-elevated);
-    border: 1px solid var(--color-hairline);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    backdrop-filter: blur(18px) saturate(1.25);
+    border: 1px solid rgba(255, 255, 255, 0.11);
     border-radius: var(--radius-xl);
     overflow: hidden;
   }
@@ -345,11 +349,15 @@
     animation: var(--animate-marquee);
   }
 
-  /* ---- Form controls ---- */
+  /* ---- Form controls ----
+     Frosted grey glass instead of absolute black, so inputs read as controls
+     floating over the canvas rather than holes punched in it. */
   .field {
     width: 100%;
-    background-color: var(--color-abyss);
-    border: 1px solid var(--color-hairline);
+    background-color: rgba(255, 255, 255, 0.06);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-md);
     padding: 0.75rem 0.875rem;
     font-size: 0.8125rem;

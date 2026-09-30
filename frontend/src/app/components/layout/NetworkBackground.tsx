@@ -7,7 +7,7 @@ export function NetworkBackground() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext("webgl", { alpha: true, antialias: true }) as WebGLRenderingContext;
+    const gl = canvas.getContext("webgl", { alpha: true, antialias: false }) as WebGLRenderingContext;
     if (!gl) return;
 
     // Helper to compile shaders
@@ -69,8 +69,9 @@ export function NetworkBackground() {
     const positionBuffer = gl.createBuffer();
     const colorBuffer = gl.createBuffer();
 
-    // Particle logic
-    const particleCount = 100;
+    // Particle logic (fewer bodies on small screens — fullscreen O(N²)
+    // link checks are the frame cost here, not the draw itself)
+    const particleCount = window.innerWidth < 768 ? 60 : 100;
     const particles = new Float32Array(particleCount * 4); // x, y, vx, vy
     for (let i = 0; i < particleCount; i++) {
       particles[i * 4] = Math.random() * window.innerWidth;
@@ -101,6 +102,11 @@ export function NetworkBackground() {
     const edgeColor = hexToRgb(0x3d46ff);
 
     const render = () => {
+      // Hidden tab: skip all work (positions freeze, no backlog accrues).
+      if (document.hidden) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
       const width = canvas.width;
       const height = canvas.height;
 

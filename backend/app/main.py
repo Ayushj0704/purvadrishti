@@ -43,6 +43,14 @@ EVENT_QUEUE: asyncio.Queue = asyncio.Queue()
 # P1: In-memory ATM cache — loaded once at startup, avoids 500-row DB fetch per request
 _ATM_CACHE: list = []
 
+# Short-TTL caches for the expensive aggregation endpoints (1000-row scans +
+# per-ATM fallbacks). Data moves slowly relative to the TTL; predictions and
+# alerts always read live rows.
+_HOTSPOTS_CACHE: dict = {"ts": 0.0, "key": None, "data": None}
+_HOTSPOTS_TTL = 30.0
+_VELOCITY_CACHE: dict = {"ts": 0.0, "key": None, "data": None}
+_VELOCITY_TTL = 60.0
+
 @app.on_event("startup")
 def startup_warmup():
     """P5+P6: Eager model load + Neon warm-up ping + ATM cache load."""
@@ -490,6 +498,9 @@ def hotspots(state: str | None = None, risk: str | None = None,
              db: Session = Depends(get_db),
              role: str = Depends(require_roles("BANK_ANALYST"))):
     from datetime import datetime as _dt, timedelta as _td
+    key = (state, risk, min_score, limit, category, hours_back)
+    if _HOTSPOTS_CACHE["key"] == key and time.time() - _HOTSPOTS_CACHE["ts"] < _HOTSPOTS_TTL:
+        return _HOTSPOTS_CACHE["data"]
     q = db.query(Prediction).join(Case, Prediction.case_id == Case.id)
     if category:
         q = q.filter(Case.crime_subcategory == category)
@@ -513,7 +524,9 @@ def hotspots(state: str | None = None, risk: str | None = None,
                           "state": a.state if a else "",
                           **_cell_geometry(key, a)}
     out = sorted(cells.values(), key=lambda c: -c["risk_score"])[:limit]
-    return {"cells": out, "count": len(out)}
+    data = {"cells": out, "count": len(out)}
+    _HOTSPOTS_CACHE.update({"ts": time.time(), "key": key, "data": data})
+    return data
 
 
 @app.get("/api/v1/activity/velocity")
@@ -524,6 +537,8 @@ def velocity(hours: int = 24, db: Session = Depends(get_db),
     with observed counts — no sampling, no synthesis)."""
     from datetime import datetime as _dt, timedelta as _td
     hours = max(1, min(hours, 168))
+    if _VELOCITY_CACHE["key"] == hours and time.time() - _VELOCITY_CACHE["ts"] < _VELOCITY_TTL:
+        return _VELOCITY_CACHE["data"]
     now = _dt.utcnow().replace(minute=0, second=0, microsecond=0)
     start = now - _td(hours=hours - 1)
     buckets = []
@@ -536,7 +551,9 @@ def velocity(hours: int = 24, db: Session = Depends(get_db),
             Prediction.generated_at >= t0, Prediction.generated_at < t1).count()
         buckets.append({"t": t0.isoformat(), "complaints": nc,
                         "predictions": np_})
-    return {"hours": hours, "buckets": buckets}
+    data = {"hours": hours, "buckets": buckets}
+    _VELOCITY_CACHE.update({"ts": time.time(), "key": hours, "data": data})
+    return data
 
 
 @app.get("/api/v1/model/metrics")

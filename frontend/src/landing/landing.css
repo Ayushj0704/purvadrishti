@@ -62,7 +62,7 @@
    rule is unlayered, which is what lets it win over the layered base. */
 html,
 body {
-  background-color: #000;
+  background-color: var(--color-void, #08060f);
 }
 
 /* ---------------------------------------------------------------- canvas -- */
@@ -211,6 +211,78 @@ a:hover {
     transparent 70%
   );
   box-shadow: 0 -2rem 4rem rgba(0, 0, 0, 0.55);
+}
+
+/* The problem and what-it-does panels carry the same accent band as the closing
+   "Ready when you are" band and the footer, so those three read as one
+   continuous statement about the product rather than three unrelated slabs.
+
+   The panel's own type colours are the console's dark-theme tokens, which are
+   wrong on a saturated blue field: --color-accent (#6f78ff) on --color-accent-
+   strong (#3d46ff) is a 1.6:1 wash, and --color-muted/#a1a1ac only reaches about
+   3.4:1 there. So the band re-derives its type from white instead of borrowing
+   the console ramp: tinted whites for the two body weights, an opaque white
+   title, and a translucent white kicker that keeps the sentence-case voice
+   without competing with the heading. */
+.accent-band {
+  background-color: var(--color-accent-strong);
+  background-image: radial-gradient(
+    ellipse 90% 55% at 50% 0%,
+    rgba(140, 150, 255, 0.5),
+    transparent 70%
+  );
+  border-top-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 -2rem 4rem rgba(0, 0, 0, 0.35);
+}
+
+.accent-band .kicker {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.accent-band .body-lg,
+.accent-band .body-md {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.accent-band .display,
+.accent-band .split-title {
+  color: #fff;
+}
+
+/* Hairlines and cards that sit on the band lose their dark-theme contrast and
+   gain a translucent white edge instead, so a divider still reads as a divider
+   rather than disappearing into the field. */
+.accent-band :is(.stat-label, .metric-label, .metric-note, .rail-pill) {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.accent-band :is(hr, .rule, .hairline) {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* The capability cards are the opposite problem: --color-surface is a dark
+   violet that is now darker than the field they sit on, so they punched holes
+   in the band. They invert to a translucent white sheet, which keeps the stack
+   of cards legible as separate planes without introducing a second hue. */
+.accent-band .card {
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.accent-band .card:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.accent-band .card-title {
+  color: #fff;
+}
+
+/* The chip is an opaque near-white disc on the console; on the band it becomes a
+   translucent white pill with white type, so it stays a marker rather than
+   becoming the brightest thing on the section. */
+.accent-band .card-chip {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 /* Content taller than the viewport cannot be stuck at top: 0 without pushing its

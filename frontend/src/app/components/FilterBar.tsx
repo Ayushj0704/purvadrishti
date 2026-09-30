@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GlideSelect } from "./ui/GlideSelect";
+import GlideSelect from "./ui/GlideSelect";
 
 /**
  * Query controls for the risk layer.
@@ -97,7 +97,7 @@ export function FilterBar({ onFilterChange }: { onFilterChange: (filters: Filter
   const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
 
   return (
-    <div className="panel">
+    <div className="panel-glass">
       <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
         <span className="label-caps text-muted">Query parameters</span>
         <button
@@ -109,13 +109,15 @@ export function FilterBar({ onFilterChange }: { onFilterChange: (filters: Filter
         </button>
       </div>
 
+      {/* The cells are left transparent so the panel's fill is what shows through
+          the 1px gaps; an opaque cell colour would cover the glass outright. */}
       <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-4">
         {GROUPS.map((group) => (
-          <div key={group.key} className="flex flex-col gap-2 bg-surface p-4">
+          <div key={group.key} className="flex flex-col gap-2 p-4">
             <span className="label-caps text-faint">{group.label}</span>
             <GlideSelect
               size="sm"
-              items={group.options.map(([value, label]) => ({ value, label }))}
+              options={group.options.map(([value, label]) => ({ value, label }))}
               value={filters[group.key]}
               onChange={(value) => update(group.key, value)}
               ariaLabel={group.label}

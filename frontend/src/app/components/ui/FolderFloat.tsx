@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -19,19 +20,37 @@ const DEFAULT_ITEMS = [
   "Logo feels small",
   "Love the new hero",
 ];
-const PAD = 28;
-const CHAR = 6.8;
 const GAP = 12;
-const ROW = 52;
 const DRAG_MIN = 4;
 const ZONE_PAD = 8;
 
 /** Pill metrics at scale 1; `pillSize` multiplies all of them together. */
-const PILL = { h: 34, pad: 14, font: 13, row: 18 };
+const PILL = { h: 34, pad: 14, font: 13, row: 52, radius: 999, char: 6.8 };
+
+/**
+ * The file variant, for items that carry a note.
+ *
+ * The dashboard's four metrics are each an index, a label, a value AND a
+ * qualifier — "of 41 cells matching filters". A pill only has room for two of
+ * those, and a figure on the folder that disagrees with the banner under it is
+ * worse than no figure at all. So an item with a note promotes itself to a
+ * taller card that holds all three lines, and the label stops being truncated.
+ *
+ * `w` is a target, not a measurement. Sizing the card off its longest note gave
+ * a 377px sheet, which four of them cannot fit across the folder's spread; the
+ * qualifier wraps to a second line instead, and the fan stays readable.
+ */
+const FILE = { h: 108, pad: 15, font: 13, row: 124, radius: 12, char: 6.2, w: 208 };
+
+type Dims = typeof PILL;
 
 interface FloatItem {
   label: string;
   value: string;
+  /** Qualifier line. Its presence on any item promotes every pill to a file. */
+  note?: string;
+  /** Short code shown ahead of the label, e.g. "A". */
+  index?: string;
 }
 
 type FloatInput = string | FloatItem;
@@ -120,22 +139,26 @@ const layout = (
   tilt: number,
   sizes: PaperSize[],
   scale: number,
+  dims: Dims,
+  pitch: number,
+  gutter: number,
 ) => {
+  const g = gutter || GAP;
   const rows: Array<{ items: Array<{ i: number; pw: number }>; width: number }> = [];
   let row: Array<{ i: number; pw: number }> = [];
   let width = 0;
   list.forEach((item, i) => {
-    const pw = sizes[i]?.w ?? (PAD + item.label.length * CHAR) * scale;
-    if (row.length && width + GAP + pw > spread * 2) {
+    const est = (dims.pad + Math.max(item.label.length, String(item.value).length) * dims.char) * scale;
+    const pw = sizes[i]?.w ?? est;
+    if (row.length && width + g + pw > spread * 2) {
       rows.push({ items: row, width });
       row = [];
       width = 0;
     }
     row.push({ i, pw });
-    width += (row.length > 1 ? GAP : 0) + pw;
+    width += (row.length > 1 ? g : 0) + pw;
   });
   if (row.length) rows.push({ items: row, width });
-  const pitch = ROW + PILL.row * (scale - 1);
   const pos: Array<{ x: number; y: number; r: number }> = [];
   rows.forEach((r, ri) => {
     let x = -r.width / 2;
@@ -147,7 +170,7 @@ const layout = (
         y: -lift - ri * pitch - j * 6,
         r: tilt * (j * 2 - 1),
       };
-      x += pw + GAP;
+      x += pw + g;
     });
   });
   return pos;
@@ -218,8 +241,18 @@ export function FolderFloat({
   const n = list.length;
   const sub = sublabel || `${n} ${n === 1 ? "note" : "notes"}`;
 
+  // Values are part of the key, not just labels: a live count changing from 9 to
+  // 10 changes the card's measured width, and the layout packs rows by that width.
+  const labelsKey = list.map((item) => `${item.index}${item.label}=${item.value}`).join("|");
+
+  // One note on any item promotes the whole cloud to files. Mixing a pill and a
+  // card in the same fan would make the taller one look like the broken one, so
+  // the variant is decided once for the set rather than per item.
+  const asFiles = list.some((item) => Boolean(item.note));
+  const dims: Dims = asFiles ? FILE : PILL;
+
   // The cloud is centred on the folder but may be much wider than it, so cap the
-  // spread to the space the host column actually has. Without this the pills
+  // spread to the space the host column actually has. Without this the cards
   // overflow a narrow viewport no matter how the caller sizes the folder.
   const [available, setAvailable] = useState<number | null>(null);
   useEffect(() => {
@@ -234,10 +267,134 @@ export function FolderFloat({
     return () => ro.disconnect();
   }, []);
 
-  const effSpread = available ? Math.max(80, Math.min(spread, (available - 8) / 2)) : spread;
-  const pos = layout(list, effSpread, lift, tilt, sizes, pillSize);
+  // File cards get a wider gutter than the default. The pill gap is sized for
+  // chips that overlap slightly as they fan; sheets that size sit almost flush
+  // and read as one block, which is the opposite of the fan this component
+  // exists to do. Scaled off the column so it grows with the cards rather than
+  // becoming a fixed gap that looks cramped on a wide screen and breaks the row
+  // on a narrow one.
+  const fileGutter = useMemo(() => {
+    if (!asFiles || !available) return GAP;
+    const ceiling = (available - 8) / 2;
+    return Math.round(Math.min(40, Math.max(16, ceiling * 0.13)));
+  }, [asFiles, available]);
 
-  const labelsKey = list.map((item) => item.label).join("|");
+  // A card has no intrinsic width once its text is allowed to wrap, so the
+  // browser shrinks it to min-content and the note stacks into a tall ribbon.
+  // Give it a target width, then cap that against the column it must fan into.
+  //
+  // The cap is deliberately half the budget rather than the whole thing. The row
+  // packer in layout() starts a new row once `width + gutter + pw > spread * 2`,
+  // and for file cards spread is the card width plus the gutter - so the widest
+  // row it can ever accept is two cards. Capping against the full column let a
+  // 245px card sit in a 240px half-budget, every card failed that test on its
+  // own, and the set collapsed to one card per row: four rows climbing off the
+  // top of the screen. Deriving the cap from the same two-across budget the
+  // packer uses keeps the break test satisfiable at any column width.
+  const fileWidth = useMemo(() => {
+    if (!asFiles) return 0;
+    const target = Math.round(FILE.w * pillSize);
+    if (!available) return target;
+    const budget = available - 8;
+    const twoAcross = (budget - fileGutter) / 2 - 2;
+    return Math.max(140, Math.min(target, twoAcross));
+  }, [asFiles, available, fileGutter, pillSize]);
+
+  // The spread is half the cloud's width, so it has to clear the widest card or
+  // the row-break test can never fit two side by side. Capped too small it put
+  // one card per row and the set climbed off the top of the screen. Cards set
+  // their own floor (two across, plus the gutter); pills keep the caller's spread.
+  const effSpread = useMemo(() => {
+    if (!available) return spread;
+    const ceiling = (available - 8) / 2;
+    if (!asFiles) return Math.max(80, Math.min(spread, ceiling));
+    // Two cards and a gutter, with a little slack so the break is not borderline.
+    return Math.max(80, Math.min(fileWidth + fileGutter, ceiling));
+  }, [available, asFiles, fileWidth, fileGutter, spread]);
+  // How much room the cards have above them. Rows fan upward from the folder, so
+  // a set that breaks into several rows grows toward the top of the screen; this
+  // is the ceiling the row pitch has to respect.
+  //
+  // In fan mode this is measured from the items anchor, not the folder's top
+  // edge. The anchor sits below the folder's top by the tab height, so
+  // measuring the folder understated the headroom by that much and made the fit
+  // guard shrink cards that already had room to spare - cards were dropping to
+  // 72% on a 1600x1000 desktop for no reason.
+  //
+  // In compact mode the anchor is the grid below the folder, so measuring it
+  // would compare the grid against itself and flip the decision back and forth.
+  // The folder is the stable reference in both modes, so each mode measures the
+  // element that supports it and the choice cannot oscillate.
+  const [topRoom, setTopRoom] = useState(320);
+
+  // Pack the rows first, then shrink the pitch if the stack would outgrow the
+  // space above the folder. Shrinking rather than clipping keeps every card
+  // reachable, and the row gap is floored so cards never overlap into mush.
+  const pos0 = layout(list, effSpread, lift, tilt, sizes, pillSize, dims, dims.row * pillSize, asFiles ? fileGutter : GAP);
+  const rowCount = pos0.length ? Math.max(1, Math.round((Math.abs(Math.min(...pos0.map((p) => p.y))) + lift) / (dims.row * pillSize))) : 1;
+  const cardH = (sizes[0]?.h ?? dims.h * pillSize) || dims.h * pillSize;
+  const maxPitch = rowCount > 1 ? Math.max(cardH + 8, (topRoom - lift - cardH) / (rowCount - 1)) : dims.row * pillSize;
+  const pitch = Math.min(dims.row * pillSize, maxPitch);
+  const pos = rowCount > 1 && pitch < dims.row * pillSize
+    ? layout(list, effSpread, lift, tilt, sizes, pillSize, dims, pitch, asFiles ? fileGutter : GAP)
+    : pos0;
+
+  // Last line of defence. On a short viewport the folder can sit so low that
+  // even a tight two-row stack is taller than the room above it, and no amount
+  // of repacking fits - there is simply less than 300px between the folder and
+  // the top edge. Rather than let the cards slide off (or overlap into an
+  // unreadable pile), scale the entire cloud about the folder's own centre so it
+  // always fits the space it has. Applied to the container, not the cards, so
+  // positions and physics coordinates scale together and the fan keeps its
+  // shape instead of every card shrinking in place and colliding.
+  const stackTop = lift + (rowCount - 1) * pitch;
+  const needed = stackTop + cardH;
+  const fit = needed > topRoom
+    ? Math.max(0.5, Math.min(1, (topRoom - cardH * 0.35) / needed))
+    : 1;
+
+  // Below roughly 0.7 the fan is no longer a fan - the cards are shrunken far
+  // enough that the type stops being readable, which is a worse outcome than
+  // cards overflowing. That happens on narrow layouts where the folder sits
+  // close to the top of the screen and there is simply less room above it than
+  // a single card occupies. There is no scale that fixes that, so the cloud
+  // stops fanning and becomes an ordinary grid that flows below the folder,
+  // where it can be as tall as it needs without leaving the viewport.
+  //
+  // The two thresholds are a dead band, not a mistake. Which element gets
+  // measured depends on the mode, so a single threshold lets a viewport sitting
+  // near the boundary oscillate between fan and grid on every scroll tick.
+  // Requiring a clear margin to leave the grid, and a smaller one to enter it,
+  // settles it in one direction.
+  const compactRef = useRef(false);
+  const compact = fit < (compactRef.current ? 0.78 : 0.7);
+  compactRef.current = compact;
+
+  // Re-measuring when the mode changes is deliberately NOT done here. The
+  // compact grid makes this root taller, which moves the folder up the page,
+  // which leaves even less room and so argues for compact again - a loop that
+  // locked 1366x768 into the grid on a fresh load, where the fan fits
+  // comfortably. Measuring once per layout, in fan terms, keeps the decision
+  // independent of its own side effects.
+  useEffect(() => {
+    const measure = () => {
+      const root = rootRef.current;
+      if (!root) return;
+      const el = root.hasAttribute("data-compact")
+        ? root.querySelector<HTMLElement>(".folder-float__folder")
+        : anchorRef.current;
+      if (!el) return;
+      setTopRoom(Math.max(120, el.getBoundingClientRect().top - 8));
+    };
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const measure = () => {
       const next = pillRefs.current
@@ -253,7 +410,13 @@ export function FolderFloat({
     };
     measure();
     document.fonts?.ready.then(measure);
-  }, [n, labelsKey]);
+    // fileWidth and pillSize are in the deps on purpose. They decide the card's
+    // real width, and the row packer below compares that width against the
+    // column budget - so when either changes, the cached sizes are stale and
+    // packing silently reverts to one card per row. That is what left the
+    // metrics stacked in a single vertical column after a resize: 245px measured
+    // at the old width, tested against a 240px budget, every card its own row.
+  }, [n, labelsKey, fileWidth, pillSize]);
 
   const stopPhysics = useCallback(() => {
     const w = world.current;
@@ -280,6 +443,11 @@ export function FolderFloat({
   const startPhysics = useCallback(() => {
     const w = world.current;
     if (w.engine) return;
+    // The compact layout is a static grid: the engine writes per-card x/y
+    // transforms, which would drag the cards out of their grid cells and back
+    // into a fan that does not fit. Nothing to simulate when they are not
+    // floating.
+    if (compact) return;
     const els = pillRefs.current.slice(0, n);
     if (els.some((el) => !el)) return;
     const engine = Engine.create({ gravity: { x: 0, y: 0 } });
@@ -297,7 +465,7 @@ export function FolderFloat({
     w.bodies = els.map((_el, i) => {
       const { w: bw, h: bh } = w.sizes[i];
       const b = Bodies.rectangle(pos[i].x, pos[i].y + bh / 2, bw, bh, {
-        chamfer: { radius: Math.min(bh / 2 - 1, 16 * pillSize) },
+        chamfer: { radius: Math.min(bh / 2 - 1, (dims.radius / 100) * bh) },
         restitution: 0.55,
         friction: 0,
         frictionAir: 0.08,
@@ -359,7 +527,7 @@ export function FolderFloat({
       s.raf = requestAnimationFrame(tick);
     };
     w.raf = requestAnimationFrame(tick);
-  }, [n, effSpread, lift, pillSize, pos.map((p) => `${p.x},${p.y}`).join("|")]);
+  }, [n, effSpread, lift, pillSize, compact, pos.map((p) => `${p.x},${p.y}`).join("|")]);
 
   const applyOpen = useCallback(
     (next: boolean) => {
@@ -477,6 +645,7 @@ export function FolderFloat({
       ref={rootRef}
       className={cn("folder-float", className)}
       data-open={open ? "" : undefined}
+      data-compact={compact ? "" : undefined}
       data-live={live ? "" : undefined}
       data-physics={physics ? "" : undefined}
       data-trigger={trigger}
@@ -505,9 +674,12 @@ export function FolderFloat({
           "--ff-item": itemColor,
           "--ff-item-ink": itemTextColor,
           "--ff-label": labelColor,
-          "--ff-pill-h": `${(PILL.h * pillSize).toFixed(1)}px`,
-          "--ff-pill-pad": `${(PILL.pad * pillSize).toFixed(1)}px`,
-          "--ff-pill-font": `${(PILL.font * pillSize).toFixed(1)}px`,
+      "--ff-pill-h": `${(dims.h * pillSize).toFixed(1)}px`,
+      "--ff-pill-pad": `${(dims.pad * pillSize).toFixed(1)}px`,
+      "--ff-pill-font": `${(dims.font * pillSize).toFixed(1)}px`,
+      "--ff-radius": `${((dims.radius / 100) * dims.h * pillSize).toFixed(1)}px`,
+      "--ff-file-w": `${fileWidth}px`,
+      "--ff-fit": fit.toFixed(3),
           "--ff-spread": `${effSpread}px`,
           "--ff-lift": `${lift}px`,
           "--ff-angle": `${flapAngle}deg`,
@@ -534,6 +706,13 @@ export function FolderFloat({
               tabIndex={open ? 0 : -1}
               aria-hidden={!open}
               data-pop={popped === i ? "" : undefined}
+              data-file={asFiles ? "" : undefined}
+              aria-label={
+                [item.index, item.label, item.value, item.note]
+                  .filter(Boolean)
+                  .join(": ")
+                  .replace(/: $/, "")
+              }
               style={
                 {
                   "--i": i,
@@ -550,7 +729,23 @@ export function FolderFloat({
                 if (!world.current.live || e.detail === 0) pick(item, i);
               }}
             >
-              <span className="folder-float__drift">{item.label}</span>
+              <span className="folder-float__drift">
+                {asFiles ? (
+                  <>
+                    {item.index && <span className="folder-float__index">{item.index}</span>}
+                    <span className="folder-float__value">{item.value}</span>
+                    <span className="folder-float__label">{item.label}</span>
+                    {item.note && <span className="folder-float__note">{item.note}</span>}
+                  </>
+                ) : (
+                  <>
+                    <span className="folder-float__value">{item.value}</span>
+                    {item.value !== item.label && (
+                      <span className="folder-float__text">{item.label}</span>
+                    )}
+                  </>
+                )}
+              </span>
             </button>
           );
         })}

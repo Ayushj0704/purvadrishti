@@ -148,6 +148,77 @@
   z-index: 1;
   width: 0;
   height: 0;
+  /* When the folder sits too low in a short viewport for the whole fan to fit
+     above it, --ff-fit scales the cloud down about the folder's centre rather
+     than letting the top row run off the screen. Origin is the bottom of this
+     zero-size box, which sits on the folder, so the cards fold inward toward
+     the folder instead of drifting away from it. */
+  transform: scale(var(--ff-fit, 1));
+  transform-origin: 50% 100%;
+  }
+
+/* Compact fallback: a viewport with less room above the folder than one card
+   needs. There is no scale that makes a fan fit in that space without making
+   the type unreadable, so the cards stop floating and become a plain grid that
+   flows below the folder. Static positioning and no transform means the cards
+   can be as tall as they like without ever leaving the viewport, and the root
+   grows to hold them instead of clipping. */
+.folder-float[data-compact] .folder-float__items {
+  position: static;
+  width: auto;
+  height: auto;
+  transform: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 0 2px;
+  /* The items container is the first child in the DOM, which never mattered
+     while it was absolutely positioned. Once it is static that ordering puts
+     the grid above the folder, so the root becomes a flex column and the grid
+     is pushed after it. */
+  order: 1;
+}
+
+.folder-float[data-compact] {
+  display: flex;
+  flex-direction: column;
+  /* Take the full column so the two grid cells are not squeezed into the
+     folder's own width. */
+  width: 100%;
+  /* The grid makes this root much taller than the folder. If the metrics row
+     centres its children, that overflow spills equally up and down and pushes
+     the folder itself off the top of the screen - the exact failure the compact
+     layout exists to prevent. Aligning to the start keeps the overflow on the
+     side that has room. */
+  align-self: flex-start;
+}
+
+.folder-float[data-compact] .folder-float__folder {
+  order: 0;
+  align-self: flex-start;
+}
+
+.folder-float[data-compact] .folder-float__item {
+  position: static;
+  left: auto;
+  top: auto;
+  width: auto;
+  max-width: none;
+  /* Beats the per-item translate/rotate the fan writes inline. */
+  transform: none !important;
+}
+
+/* The pointer bridge only exists to keep a hover open while the pointer travels
+   from the flap up to the floating cards. In the grid the cards are inside the
+   folder's own box, so there is no gap to bridge. */
+.folder-float[data-compact] .folder-float__items::before {
+  content: none;
+}
+
+/* Static items still occupy layout space when closed, which would leave a dead
+   gap under the folder. Take the grid out of flow entirely until it opens. */
+.folder-float[data-compact]:not([data-open]) .folder-float__items {
+  display: none;
 }
 
 /* Keeps the folder open while the pointer travels from the flap up to the
@@ -161,33 +232,78 @@
   height: calc(var(--ff-lift) + var(--ff-pill-h) + 60px);
 }
 
-.folder-float__item {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  margin: 0;
-  padding: 0 var(--ff-pill-pad);
-  height: var(--ff-pill-h);
-  border: 0;
-  border-radius: calc(var(--ff-pill-h) / 2);
-  background: var(--ff-item);
-  color: var(--ff-item-ink);
-  font: inherit;
-  font-size: var(--ff-pill-font);
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
-  cursor: pointer;
-  outline: none;
-  opacity: 0;
-  transform: translate(-50%, 44px) scale(0.6);
-  transform-origin: 50% 50%;
-  pointer-events: none;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    transform var(--ff-close) var(--ff-ease-out) calc((var(--ff-n) - 1 - var(--i)) * var(--ff-stagger) * 0.5),
-    opacity 160ms ease calc((var(--ff-n) - 1 - var(--i)) * var(--ff-stagger) * 0.5 + var(--ff-close) * 0.45),
-    scale 160ms var(--ff-ease-out);
-}
+  .folder-float__item {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0 var(--ff-pill-pad);
+    height: var(--ff-pill-h);
+    border: 0;
+    border-radius: var(--ff-radius);
+    background: var(--ff-item);
+    color: var(--ff-item-ink);
+    font: inherit;
+    font-size: var(--ff-pill-font);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+    cursor: pointer;
+    outline: none;
+    opacity: 0;
+    transform: translate(-50%, 44px) scale(0.6);
+    transform-origin: 50% 50%;
+    pointer-events: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform var(--ff-close) var(--ff-ease-out) calc((var(--ff-n) - 1 - var(--i)) * var(--ff-stagger) * 0.5),
+      opacity 160ms ease calc((var(--ff-n) - 1 - var(--i)) * var(--ff-stagger) * 0.5 + var(--ff-close) * 0.45),
+      scale 160ms var(--ff-ease-out);
+  }
+
+  /* The file variant: a sheet, not a pill. It is tall enough to stack the
+     qualifier under the caption without clipping, and the text is allowed to
+     wrap so a long note ("of 41 cells matching filters") breaks instead of
+     stretching the card wider than its column. */
+  .folder-float__item[data-file] {
+    align-items: stretch;
+    width: var(--ff-file-w);
+    max-width: var(--ff-file-w);
+    /* Height comes from the content, not a fixed track. A fixed height with
+       align-items: stretch left the three lines floating in an over-tall box,
+       which is what made the cards look like ribbons rather than sheets. */
+    height: auto;
+    min-height: var(--ff-pill-h);
+    padding: calc(var(--ff-pill-pad) * 0.9) var(--ff-pill-pad);
+    white-space: normal;
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.18),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+
+  .folder-float__item[data-file] .folder-float__drift {
+    display: grid;
+    /* Tag on its own line, then the attribute and its value as one reading
+       line, then the qualifier. The tag used to sit in a left column spanning
+       the first two rows, which wedged it between the value and the attribute
+       and made all three look like peers on one line. */
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      'index index'
+      'label value'
+      'note note';
+    /* space-between, not center: the card is taller than its three lines, and
+       centering left them floating as a cluster in the middle of the sheet. The
+       tag anchors to the top, the qualifier to the foot, which is how a
+       document reads. */
+    align-content: space-between;
+    align-items: baseline;
+    column-gap: 0.5em;
+    row-gap: 0.35em;
+    flex: 1;
+    text-align: left;
+  }
 
 .folder-float[data-open] .folder-float__item {
   opacity: 1;
@@ -222,9 +338,13 @@
   animation: folder-float-pop 320ms var(--ff-ease-out);
 }
 
-.folder-float__drift {
-  display: block;
-  animation: folder-float-drift 3.2s ease-in-out infinite;
+  /* Pill variant: one inline row, the value leading the caption. Both share the
+     drift animation, so the whole pill breathes as one object. */
+  .folder-float__drift {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45em;
+    animation: folder-float-drift 3.2s ease-in-out infinite;
   animation-delay: calc(var(--i) * -0.7s);
   animation-play-state: paused;
 }
@@ -263,7 +383,87 @@
    back. Both the flap and the pills are real buttons and are keyboard-reached
    once the folder is open. */
 .folder-float__trigger:focus-visible,
-.folder-float__item:focus-visible {
+  /* The figure is the payload of the card, so it takes the strong weight and the
+     mono face; the caption stays quiet so a row of four reads as four numbers
+     with context rather than eight competing strings. */
+  .folder-float__value {
+    grid-area: value;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    /* Same size and line-height as the label it shares a line with. They were
+       15px and 13px, which put their baselines 14px apart and made one reading
+       line look like two staggered ones. The value still leads through weight
+       and family rather than size. */
+    font-size: calc(var(--ff-pill-font) * 0.92);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .folder-float__text {
+    font-weight: 450;
+    opacity: 0.62;
+  }
+
+  /* File variant only. The index is a locator so the card can be traced back to
+     its row in the metrics banner; it is set apart from the value rather than
+     sharing its weight, since it carries no data. Now that it has a line of its
+     own it is drawn as a tag rather than a loose character - a hairline chip
+     reads as a label at a glance, where the bare glyph just looked like a
+     stray digit. */
+  .folder-float__index {
+    grid-area: index;
+    justify-self: start;
+    padding: 0.1em 0.45em;
+    border-radius: 5px;
+    background: rgba(24, 22, 31, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(24, 22, 31, 0.12);
+    font-family: var(--font-mono);
+    font-size: calc(var(--ff-pill-font) * 0.72);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0.04em;
+    opacity: 0.72;
+  }
+
+  .folder-float__label {
+    grid-area: label;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  /* The base rule pins the label to 13px, which is right for a caption but not
+     for the attribute half of a reading line with a value beside it. */
+  .folder-float__item[data-file] .folder-float__label {
+    font-size: calc(var(--ff-pill-font) * 0.92);
+  }
+
+  /* Pairs the attribute with its value on one reading line. Scoped to the file
+     variant because the pill puts its value first and reads as a single figure
+     already - a separator there would break that pairing apart. */
+  .folder-float__item[data-file] .folder-float__value::before {
+    content: '\00b7';
+    margin-right: 0.45em;
+    opacity: 0.45;
+  }
+
+.folder-float__note {
+  grid-area: note;
+  margin-top: 0.25em;
+  font-size: calc(var(--ff-pill-font) * 0.82);
+  line-height: 1.3;
+  opacity: 0.6;
+  /* The note is the tallest thing in a file card, and it wraps, so its height
+     depended on how narrow the card had to get. Clamping it to two lines keeps
+     the card's measured height - which the vertical packer uses to decide how
+     many rows fit above the folder - stable across viewport widths. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  }
+
+  .folder-float__item:focus-visible {
   outline: 1px solid var(--color-accent-bright, #9aa0ff);
   outline-offset: 2px;
 }

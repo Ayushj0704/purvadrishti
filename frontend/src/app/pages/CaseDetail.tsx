@@ -168,6 +168,26 @@ export function CaseDetail() {
     [candidates],
   );
 
+  // Frame the candidates, not the country. The default India-wide camera was
+  // right for the dashboard and useless here: a single complaint's terminals sit
+  // within a few kilometres of each other, so at zoom 4 they collapsed into one
+  // dot in the middle of the subcontinent. Zoom is derived from the spread of the
+  // returned coordinates and clamped, so one candidate, or several sharing a
+  // coordinate, still lands on a sensible frame.
+  const candidateView = useMemo(() => {
+    const list = candidates?.candidates ?? [];
+    if (list.length === 0) return undefined;
+    const lons = list.map((c) => c.lon);
+    const lats = list.map((c) => c.lat);
+    const lon = (Math.min(...lons) + Math.max(...lons)) / 2;
+    const lat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    // ~0.06 deg of longitude is roughly the width of a metro area, so a tight
+    // cluster still opens at street scale instead of maxing out.
+    const span = Math.max(Math.max(...lons) - Math.min(...lons), Math.max(...lats) - Math.min(...lats));
+    const zoom = span > 0.5 ? 8 : span > 0.15 ? 9.5 : span > 0.04 ? 11 : 13;
+    return { longitude: lon, latitude: lat, zoom };
+  }, [candidates]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-10">
@@ -415,7 +435,7 @@ export function CaseDetail() {
               />
             ) : (
               <div className="h-[28rem]">
-                <RiskMap points={candidatePoints} viewState={undefined} />
+                <RiskMap points={candidatePoints} initialViewState={candidateView} />
               </div>
             )}
           </Panel>

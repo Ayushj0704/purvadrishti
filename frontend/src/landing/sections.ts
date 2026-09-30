@@ -328,7 +328,7 @@ function hero(): HTMLElement {
 function problem(): HTMLElement {
   return h(
     "section",
-      { class: "section split stack-panel", id: "problem" },
+      { class: "section split stack-panel accent-band", id: "problem" },
     h(
       "div",
       { class: "shell split-grid" },
@@ -400,7 +400,7 @@ function pipeline(): HTMLElement {
 function capabilities(): HTMLElement {
   return h(
     "section",
-      { class: "section stack-panel", id: "capabilities" },
+      { class: "section stack-panel accent-band", id: "capabilities" },
     h(
       "div",
       { class: "shell" },

@@ -9,7 +9,6 @@ import { FolderFloat } from "../components/ui/FolderFloat";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { MetricRow } from "../components/ui/MetricBlock";
 import { StatusPill } from "../components/ui/StatusDot";
 import { Button } from "../components/ui/Button";
 import { heatmapApi, toHotspotLayers } from "../api/heatmap";
@@ -166,26 +165,27 @@ export function Dashboard() {
             label="Live metrics"
             sublabel={`${metrics.length} metrics`}
             trigger="click"
-            items={metrics.map((metric) => ({ label: metric.label, value: metric.value }))}
+            items={metrics.map((metric) => ({
+              index: metric.index,
+              label: metric.label,
+              value: metric.value,
+              note: metric.note,
+            }))}
             width={282}
             height={208}
             radius={19}
             spread={238}
             lift={36}
             pillSize={1.18}
-            folderColor="#15151a"
+            folderColor="#1d1930"
             frontColor="#3d46ff"
-            paperColor="#f5f5f5"
-            itemColor="#f5f5f5"
-            itemTextColor="#18181b"
+            paperColor="#efeefb"
+            itemColor="#f5f4ff"
+            itemTextColor="#18161f"
             labelColor="#f4f4f5"
           />
         }
       />
-
-      <Reveal>
-        <MetricRow items={metrics} />
-      </Reveal>
 
       <Reveal>
         <StatusStrip
@@ -225,31 +225,7 @@ export function Dashboard() {
         />
 
         <div className="grid gap-8 xl:grid-cols-12">
-          <Reveal className="xl:col-span-8">
-            <Panel className="h-full">
-              <PanelHeader
-                index="02.1"
-                title="National risk heatmap"
-                meta={
-                  <span className="label-caps tnum text-faint">
-                    {layers.polygons.features.length} cells
-                    {layers.points.features.length > 0 &&
-                      ` · ${layers.points.features.length} points`}
-                    {layers.skipped > 0 && ` · ${layers.skipped} unmapped`}
-                  </span>
-                }
-              />
-              <div className="h-[clamp(24rem,52vh,40rem)]">
-                <RiskMap
-                  polygons={layers.polygons}
-                  points={layers.points}
-                  isLoading={isLoading}
-                />
-              </div>
-            </Panel>
-          </Reveal>
-
-          <div className="flex flex-col gap-8 xl:col-span-4">
+          <div className="flex flex-col gap-8 xl:col-span-5">
             <Reveal delay={80}>
               <HotspotTable cells={cells} isLoading={isLoading} index="03" />
             </Reveal>
@@ -280,6 +256,30 @@ export function Dashboard() {
               </Panel>
             </Reveal>
           </div>
+
+          <Reveal className="xl:col-span-7">
+            <Panel className="h-full">
+              <PanelHeader
+                index="02.1"
+                title="National risk heatmap"
+                meta={
+                  <span className="label-caps tnum text-faint">
+                    {layers.polygons.features.length} cells
+                    {layers.points.features.length > 0 &&
+                      ` · ${layers.points.features.length} points`}
+                    {layers.skipped > 0 && ` · ${layers.skipped} unmapped`}
+                  </span>
+                }
+              />
+              <div className="h-[clamp(22rem,46vh,36rem)]">
+                <RiskMap
+                  polygons={layers.polygons}
+                  points={layers.points}
+                  isLoading={isLoading}
+                />
+              </div>
+            </Panel>
+          </Reveal>
         </div>
       </section>
     </div>

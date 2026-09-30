@@ -43,16 +43,20 @@ export function HotspotTable({
           detail="No prediction has cleared the current filters."
         />
       ) : (
-        <div data-lenis-prevent className="max-h-[26rem] overflow-y-auto">
-          <table className="data-table">
+        <div data-lenis-prevent className="max-h-[26rem] overflow-y-auto overflow-x-hidden">
+          {/* table-fixed, not auto: an auto table sizes to its content, and the
+              15-char mono cell id plus nowrap headers give it a min-width wider
+              than this column. Fixed layout lets the id column truncate instead,
+              so the panel never grows a horizontal scrollbar. */}
+          <table className="data-table table-fixed">
             <thead>
               <tr>
                 <th className="w-12">Rank</th>
                 <th>Cell</th>
-                <th className="hidden sm:table-cell">State</th>
-                <th className="hidden md:table-cell">Cases</th>
-                <th>Risk</th>
-                <th className="text-right">Score</th>
+                <th className="hidden w-24 sm:table-cell">State</th>
+                <th className="hidden w-16 md:table-cell">Cases</th>
+                <th className="w-28">Risk</th>
+                <th className="w-20 text-right">Score</th>
               </tr>
             </thead>
             <tbody>
@@ -68,10 +72,12 @@ export function HotspotTable({
                       {String(index + 1).padStart(2, "0")}
                     </span>
                   </td>
-                  <td>
-                    <span className="telemetry text-ink">{orDash(cell.h3_cell)}</span>
+                  <td className="truncate">
+                    <span className="telemetry text-ink" title={orDash(cell.h3_cell)}>
+                      {orDash(cell.h3_cell)}
+                    </span>
                   </td>
-                  <td className="hidden sm:table-cell">
+                  <td className="hidden truncate sm:table-cell">
                     <span className="text-xs text-muted">{orDash(cell.state)}</span>
                   </td>
                   <td className="hidden md:table-cell">

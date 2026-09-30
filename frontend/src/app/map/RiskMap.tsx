@@ -16,14 +16,20 @@ interface RiskMapProps {
   polygons?: GeoJSON.FeatureCollection;
   /** Terminals the backend resolved only to a coordinate, not a cell. */
   points?: GeoJSON.FeatureCollection;
-  viewState?: { longitude: number; latitude: number; zoom: number };
+  /** Starting camera. The map owns the view from then on, so the user can pan and zoom. */
+  initialViewState?: { longitude: number; latitude: number; zoom: number };
   onMove?: (evt: unknown) => void;
   isLoading?: boolean;
 }
 
+// Centred on India, framed so the whole country fits the panel at 4.
 const DEFAULT_VIEW_STATE = { longitude: 78.9629, latitude: 22.5937, zoom: 4.2 };
+// Cells are H3 resolution 8, so anything past ~14 is empty zoom. The floor stops
+// the user pulling back to a world view where the landmass is a few pixels.
+const MIN_ZOOM = 3.2;
+const MAX_ZOOM = 14;
 
-export function RiskMap({ polygons, points, viewState, onMove, isLoading }: RiskMapProps) {
+export function RiskMap({ polygons, points, initialViewState, onMove, isLoading }: RiskMapProps) {
   // Grayscale raster basemap keeps the risk layers as the only colour on the map.
   const mapStyle = useMemo(
     () => ({
@@ -55,9 +61,15 @@ export function RiskMap({ polygons, points, viewState, onMove, isLoading }: Risk
   return (
     <div data-lenis-prevent className="relative h-full w-full bg-abyss">
       <Map
-        {...(viewState || DEFAULT_VIEW_STATE)}
+        // initialViewState, not a spread of longitude/latitude/zoom. A top-level
+        // camera prop is a CONTROLLED view in react-map-gl v8: it is reapplied on
+        // every render, so the map snapped back to its opening camera and panning
+        // or zooming appeared to do nothing.
+        initialViewState={initialViewState ?? DEFAULT_VIEW_STATE}
         onMove={onMove}
         mapStyle={mapStyle}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         style={{ width: "100%", height: "100%" }}
         attributionControl={false}
       >

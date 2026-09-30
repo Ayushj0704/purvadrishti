@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Printer } from "lucide-react";
 import { casesApi, toTopKRows, expectedLabel } from "../api/cases";
-import type { CaseSummary, PredictResponse, ReportResponse } from "../api/cases";
+import type { CaseSummary, PredictResponse, ReportResponse, TrailResponse } from "../api/cases";
 import { Button } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/EmptyState";
 import { formatInr, formatTime } from "../lib/format";
@@ -14,6 +14,8 @@ export function CaseReport() {
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [caseData, setCaseData] = useState<CaseSummary | null>(null);
   const [predictions, setPredictions] = useState<PredictResponse | null>(null);
+  const [trail, setTrail] = useState<TrailResponse | null>(null);
+  const [eventCount, setEventCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -26,7 +28,9 @@ export function CaseReport() {
       casesApi.getReport(id).catch(() => null),
       casesApi.getCase(id).catch(() => null),
       casesApi.predict(id, { horizon_minutes: 60 }).catch(() => null),
-    ]).then(([rep, c, pred]) => {
+      casesApi.getTrail(id).catch(() => null),
+      casesApi.getTimeline(id).catch(() => null),
+    ]).then(([rep, c, pred, tr, tl]) => {
       if (cancelled) return;
       if (!rep || !c) {
         setLoadError("Case file unavailable. Check the API connection and retry.");
@@ -34,6 +38,8 @@ export function CaseReport() {
         setReport(rep);
         setCaseData(c);
         if (pred) setPredictions(pred);
+        if (tr) setTrail(tr);
+        if (tl) setEventCount(tl.events.length);
       }
       setIsLoading(false);
     });
@@ -71,6 +77,37 @@ export function CaseReport() {
   const rows = predictions ? toTopKRows(predictions.predictions) : [];
   const generatedAt = new Date().toLocaleString("en-IN", { hour12: false });
 
+  const mules = trail?.nodes.filter((n) => n.kind === "mule").length ?? 0;
+  const terminals = trail?.nodes.filter((n) => n.kind === "atm").length ?? 0;
+  const lead = rows.find((r) => r.best_bet) ?? rows[0];
+  const runnerUp = rows.length > 1 ? rows[1] : undefined;
+  const margin =
+    lead && runnerUp ? Math.round((lead.risk_score - runnerUp.risk_score) * 1000) / 10 : null;
+  const hot = predictions?.heat_watch ?? [];
+
+  const corridor =
+    caseData.incident_state && caseData.incident_state !== caseData.complainant_state
+      ? `from ${caseData.complainant_state} into ${caseData.incident_state}`
+      : `within ${caseData.complainant_state || "the reporting state"}`;
+  const narrative = [
+    `On ${caseData.reported_at ? new Date(caseData.reported_at).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "the filing date"}, a ${caseData.crime_subcategory || caseData.fraud_type} fraud of ${formatInr(caseData.fraud_amount ?? caseData.amount)} was reported ${corridor}.`,
+    lead
+      ? `The model ranks ${lead.atm_id}${lead.state ? ` (${lead.state})` : ""} as the lead cash-out terminal at ${(lead.risk_score * 100).toFixed(1)}% [${lead.risk_level}], with money expected ${expectedLabel(lead).toLowerCase()}${margin != null ? `, leading the next candidate by ${margin} points` : ""}.`
+      : `No terminal hypothesis has been scored for this file yet.`,
+    rows.length > 1
+      ? `${rows.length - 1} further terminal${rows.length === 2 ? " is" : "s are"} on the watchlist.`
+      : "",
+    mules > 0 || terminals > 0
+      ? `The traced money trail spans ${mules} mule account${mules === 1 ? "" : "s"} across ${trail?.depth ?? "—"} layers, ending at ${terminals} predicted cash-out terminal${terminals === 1 ? "" : "s"}.`
+      : "",
+    hot.length > 0
+      ? `Separately, ${hot.length} terminal${hot.length === 1 ? " shows" : "s show"} an observed withdrawal burst in the last 2 hours and must be monitored regardless of rank.`
+      : "",
+    eventCount > 0 ? `${eventCount} events are logged on the investigation timeline.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4 print:hidden">
@@ -107,7 +144,14 @@ export function CaseReport() {
         <div className="space-y-6 px-8 py-6">
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              1 · Complaint summary
+              1 · Situation overview
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed">{narrative}</p>
+          </section>
+
+          <section>
+            <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
+              2 · Complaint summary
             </h2>
             <p className="mt-2 text-sm leading-relaxed">{report.summary}</p>
             <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
@@ -137,7 +181,7 @@ export function CaseReport() {
 
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              2 · Ranked cash-out hypotheses
+              3 · Ranked cash-out hypotheses
               {predictions ? ` · model ${predictions.model_version}` : ""}
             </h2>
             {rows.length > 0 ? (
@@ -180,7 +224,7 @@ export function CaseReport() {
 
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              3 · Model notes
+              4 · Model notes
             </h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed">
               {report.predictions.map((line, i) => (

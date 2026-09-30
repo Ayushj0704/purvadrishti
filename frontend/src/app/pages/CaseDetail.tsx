@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Send } from "lucide-react";
+import { ArrowLeft, Check, Printer, Send } from "lucide-react";
 
 import { casesApi, toTopKRows, toAtmPoints, expectedLabel, HORIZON_OPTIONS } from "../api/cases";
 import type { CaseSummary, PredictResponse, TrailResponse, PredictionCandidate } from "../api/cases";
@@ -20,7 +20,7 @@ import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { Skeleton } from "../components/ui/EmptyState";
 import { StatusPill } from "../components/ui/StatusDot";
-import { Button } from "../components/ui/Button";
+import { Button, ButtonLink } from "../components/ui/Button";
 import { formatInr, formatWindow } from "../lib/format";
 import { canWrite, useRole } from "../lib/useRole";
 
@@ -261,12 +261,10 @@ export function CaseDetail() {
               <span className="telemetry text-faint">
                 {rows.length} candidates
               </span>
-              <Link
-                to={`/cases/${caseData.case_id}/report`}
-                className="label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors hover:border-accent hover:text-ink"
-              >
-                Case file
-              </Link>
+              <ButtonLink to={`/cases/${caseData.case_id}/report`} variant="primary" size="sm">
+                <Printer className="size-3" />
+                Case file — view & download
+              </ButtonLink>
             </div>
           }
         />

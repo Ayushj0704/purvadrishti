@@ -6,19 +6,19 @@ import { RiskMap } from "../map/RiskMap";
 import { TopKTable } from "../components/TopKTable";
 import { AlertRow } from "../components/AlertRow";
 import { PageHeader } from "../components/ui/PageHeader";
-import { FolderFloat } from "../components/ui/FolderFloat";
+import { HowItHelps } from "../components/HowItHelps";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { Loader } from "../components/ui/Loader";
 import { StatusPill } from "../components/ui/StatusDot";
-import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, trailToEntities, HORIZON_OPTIONS } from "../api";
+import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, trailToEntities, expectedLabel, HORIZON_OPTIONS } from "../api";
 import { canWrite, useRole } from "../lib/useRole";
 import type { HeatmapParams } from "../api/heatmap";
 import type { PredictionCandidate } from "../api/cases";
 import type { Alert } from "../api/alerts";
 import { StatusStrip } from "../components/layout/StatusStrip";
-import { formatCompact, formatTime } from "../lib/format";
+import { formatTime } from "../lib/format";
 
 const TIME_WINDOW_HOURS: Record<string, number> = {
   "1h": 1,
@@ -37,15 +37,6 @@ function filtersToHeatmapParams(filters: FilterState | null): HeatmapParams {
   const hours = TIME_WINDOW_HOURS[filters.timeWindow];
   if (hours) params.hours_back = hours;
   return params;
-}
-
-interface Metric {
-  index: string;
-  label: string;
-  value: string;
-  unit?: string;
-  delta?: { value: string; direction: "up" | "down" | "flat" };
-  note?: string;
 }
 
 export function Dashboard() {
@@ -172,34 +163,7 @@ export function Dashboard() {
   }, [candidateAtms, minRisk]);
 
   const refreshing = isLoading && booted;
-  const metrics: Metric[] = [
-    {
-      index: "A",
-      label: "Active alerts",
-      value: !booted ? "—" : String(alerts.length),
-      note: "Requires investigator review",
-    },
-    {
-      index: "B",
-      label: "High-risk zones",
-      value: !booted ? "—" : String(heatmapData?.features.length ?? 0),
-      note: "H3 resolution 8 cells",
-    },
-    {
-      index: "C",
-      label: "Cases analysed",
-      value: formatCompact(12483),
-      note: "Trailing 30 days",
-    },
-    {
-      index: "D",
-      label: "Avg lead time",
-      value: "18",
-      unit: "min",
-      delta: { value: "Stable", direction: "flat" },
-      note: "Complaint to cash-out",
-    },
-  ];
+  const best = predictions.find((p) => p.best_bet) ?? predictions[0];
 
   return (
     <div className="flex flex-col gap-20">
@@ -223,26 +187,12 @@ export function Dashboard() {
           </div>
         }
         figure={
-          <FolderFloat
-            label="Live metrics"
-            sublabel={`${metrics.length} metrics`}
-            trigger="click"
-            items={metrics.map((metric) => ({
-              label: `${metric.index} · ${metric.label} ${metric.value}${metric.unit ? ` ${metric.unit}` : ""}`,
-              value: metric.value,
-            }))}
-            width={282}
-            height={208}
-            radius={19}
-            spread={238}
-            lift={36}
-            pillSize={1.18}
-            folderColor="#15151a"
-            frontColor="#3d46ff"
-            paperColor="#f5f5f5"
-            itemColor="#f5f5f5"
-            itemTextColor="#18181b"
-            labelColor="#f4f4f5"
+          <HowItHelps
+            bestAtm={best?.atm_id}
+            bestScore={best?.risk_score}
+            expected={best ? expectedLabel(best) : undefined}
+            candidates={predictions.length || undefined}
+            caseId={topCaseId}
           />
         }
       />

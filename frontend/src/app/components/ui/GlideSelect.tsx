@@ -400,30 +400,37 @@ export default function GlideSelect({
 
   const origin = `${side === "bottom" ? "top" : "bottom"} ${align}`;
 
+  /**
+   * The menu is portalled to <body>, so it sits outside the root's subtree and
+   * cannot see variables declared on the root's style attribute. They have to
+   * travel with the menu as well, or every `var(--gs-*)` in the menu resolves to
+   * nothing: the option height collapses to auto, the pill loses its background,
+   * and the pop and glide transitions lose their duration and easing.
+   */
+  const cssVars = {
+    "--gs-accent": accentColor,
+    "--gs-surface": surfaceColor,
+    "--gs-highlight": highlightColor,
+    "--gs-text": textColor,
+    "--gs-radius": `${radius}px`,
+    "--gs-inner-radius": `${Math.max(3, radius - 4)}px`,
+    "--gs-chip": `${S.chip}px`,
+    "--gs-row": `${S.row}px`,
+    "--gs-font": `${S.font}px`,
+    "--gs-menu-w": `${menuWidth}px`,
+    "--gs-pop": `${popDuration}ms`,
+    "--gs-pop-out": `${popOut}ms`,
+    "--gs-glide": `${glideDuration}ms`,
+    "--gs-origin": origin,
+  } as CSSProperties;
+
   return (
     <div
       ref={rootRef}
       className={`glide-select${className ? ` ${className}` : ""}`}
       data-size={size}
       data-disabled={disabled ? "" : undefined}
-      style={
-        {
-          "--gs-accent": accentColor,
-          "--gs-surface": surfaceColor,
-          "--gs-highlight": highlightColor,
-          "--gs-text": textColor,
-          "--gs-radius": `${radius}px`,
-          "--gs-inner-radius": `${Math.max(3, radius - 4)}px`,
-          "--gs-chip": `${S.chip}px`,
-          "--gs-row": `${S.row}px`,
-          "--gs-font": `${S.font}px`,
-          "--gs-menu-w": `${menuWidth}px`,
-          "--gs-pop": `${popDuration}ms`,
-          "--gs-pop-out": `${popOut}ms`,
-          "--gs-glide": `${glideDuration}ms`,
-          "--gs-origin": origin,
-        } as CSSProperties
-      }
+      style={cssVars}
       onAnimationEnd={(e) => {
         if (e.animationName === "gs-swap" && rootRef.current) {
           delete rootRef.current.dataset.swap;
@@ -470,6 +477,7 @@ export default function GlideSelect({
               data-side={side}
               data-align={align}
               style={{
+                ...cssVars,
                 top: coords?.top ?? 0,
                 left: coords?.left ?? 0,
                 width: coords?.width,

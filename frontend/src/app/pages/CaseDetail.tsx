@@ -253,7 +253,7 @@ export function CaseDetail() {
           aside={
             <div className="flex flex-wrap items-center gap-3">
               <StatusPill tone="accent" pulse>
-                {caseData.status.replace("_", " ")}
+                {(caseData.status ?? "OPEN").replace("_", " ")}
               </StatusPill>
               <span className="telemetry text-faint">
                 {rows.length} candidates

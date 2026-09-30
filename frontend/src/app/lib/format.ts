@@ -45,8 +45,8 @@ export function formatWindow(
   return `${formatTime(start)} — ${formatTime(end)}`;
 }
 
-export function formatInr(value: number): string {
-  return inrFmt.format(value);
+export function formatInr(value: number | null | undefined): string {
+  return Number.isFinite(value) ? inrFmt.format(value as number) : "—";
 }
 
 export function formatCompact(value: number): string {

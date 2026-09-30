@@ -45,7 +45,7 @@ function prettyFeature(name: string): string {
  *  flags), so a linear normalisation would collapse every bar but one. The
  *  tooltip always carries the exact observed value. */
 function featuresToShap(features: Record<string, number>): ShapFeature[] {
-  const entries = Object.entries(features);
+  const entries = Object.entries(features ?? {}).filter(([, v]) => Number.isFinite(v));
   const mags = entries.map(([, v]) => Math.log1p(Math.abs(v)));
   const peak = Math.max(1e-9, ...mags);
   return entries.map(([name, value], i) => ({

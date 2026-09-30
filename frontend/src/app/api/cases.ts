@@ -60,6 +60,7 @@ export interface PredictionCandidate {
 }
 
 export function toTopKRows(predictions: ModelPrediction[]): PredictionCandidate[] {
+  if (!Array.isArray(predictions)) return [];
   return predictions.map((p) => ({
     atm_id: p.atm_id,
     state: p.state,
@@ -88,10 +89,11 @@ export function expectedLabel(p: {
 
 /** Candidate ATMs → GeoJSON points for the RiskMap marker layer. */
 export function toAtmPoints(rows: PredictionCandidate[]): GeoJSON.FeatureCollection {
+  const list = Array.isArray(rows) ? rows : [];
   return {
     type: "FeatureCollection",
-    features: rows
-      .filter((r) => r.lat != null && r.lon != null)
+    features: list
+      .filter((r) => r && r.lat != null && r.lon != null)
       .map((r) => ({
         type: "Feature" as const,
         geometry: { type: "Point" as const, coordinates: [r.lon as number, r.lat as number] },

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Cases } from "./pages/Cases";
@@ -23,12 +24,12 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/cases" element={<Cases />} />
-          <Route path="/cases/:id" element={<CaseDetail />} />
-          <Route path="/cases/:id/report" element={<CaseReport />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/" element={<RouteErrorBoundary><Dashboard /></RouteErrorBoundary>} />
+          <Route path="/cases" element={<RouteErrorBoundary><Cases /></RouteErrorBoundary>} />
+          <Route path="/cases/:id" element={<RouteErrorBoundary><CaseDetail /></RouteErrorBoundary>} />
+          <Route path="/cases/:id/report" element={<RouteErrorBoundary><CaseReport /></RouteErrorBoundary>} />
+          <Route path="/alerts" element={<RouteErrorBoundary><Alerts /></RouteErrorBoundary>} />
+          <Route path="/analytics" element={<RouteErrorBoundary><Analytics /></RouteErrorBoundary>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

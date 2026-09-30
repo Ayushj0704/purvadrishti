@@ -147,9 +147,13 @@ function layoutTrail(
 
 export function TransactionGraph({ trail }: { trail?: { nodes: TrailNode[]; edges: TrailEdge[] } }) {
   const nodeTypes = useMemo(() => ({ info: InfoNode }), []);
+  const safeTrail = trail && Array.isArray(trail.nodes) && Array.isArray(trail.edges) ? trail : undefined;
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => (trail && trail.nodes.length > 0 ? layoutTrail(trail.nodes, trail.edges) : { nodes: [], edges: [] }),
-    [trail],
+    () =>
+      safeTrail && safeTrail.nodes.length > 0
+        ? layoutTrail(safeTrail.nodes, safeTrail.edges)
+        : { nodes: [], edges: [] },
+    [safeTrail],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

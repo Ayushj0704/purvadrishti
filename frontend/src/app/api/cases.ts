@@ -196,6 +196,15 @@ export interface IngestResponse {
   deduped: boolean;
 }
 
+export interface ReportResponse {
+  case_id: number;
+  banner: string;
+  title: string;
+  summary: string;
+  predictions: string[];
+  note: string;
+}
+
 export interface SimilarCase {
   case_id: number;
   external_case_id: string;
@@ -242,4 +251,6 @@ export const casesApi = {
     api.get<TrailResponse>(`/cases/${caseId}/trail`),
   getSimilarCases: (caseId: string | number, limit = 5) =>
     api.get<SimilarCase[]>(`/cases/${caseId}/similar-cases?limit=${limit}`),
+  getReport: (caseId: string | number) =>
+    api.post<ReportResponse>(`/cases/${caseId}/report`),
 };

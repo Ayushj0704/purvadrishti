@@ -61,7 +61,7 @@ export function Login() {
         {/* Manifesto */}
         <section className="flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
           <div className="flex items-center gap-3 text-accent">
-            <Wordmark className="size-8" />
+            <Wordmark className="size-10" />
             <div className="flex flex-col leading-none">
               <span className="text-base font-semibold tracking-[-0.03em] text-ink">
                 PurvaDrishti

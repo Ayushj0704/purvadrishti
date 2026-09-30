@@ -4,6 +4,7 @@ import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Cases } from "./pages/Cases";
 import { CaseDetail } from "./pages/CaseDetail";
+import { CaseReport } from "./pages/CaseReport";
 import { Alerts } from "./pages/Alerts";
 import { Analytics } from "./pages/Analytics";
 
@@ -25,6 +26,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/cases" element={<Cases />} />
           <Route path="/cases/:id" element={<CaseDetail />} />
+          <Route path="/cases/:id/report" element={<CaseReport />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/analytics" element={<Analytics />} />
         </Route>

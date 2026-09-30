@@ -131,7 +131,7 @@ function nav(): HTMLElement {
           class: "group flex items-center gap-3 text-accent",
           "aria-label": "PurvaDrishti home",
         },
-        wordmark(28),
+        wordmark(34),
         h(
           "span",
           { class: "flex flex-col leading-none" },

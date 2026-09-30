@@ -258,6 +258,12 @@ export function CaseDetail() {
               <span className="telemetry text-faint">
                 {rows.length} candidates
               </span>
+              <Link
+                to={`/cases/${caseData.case_id}/report`}
+                className="label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors hover:border-accent hover:text-ink"
+              >
+                Case file
+              </Link>
             </div>
           }
         />

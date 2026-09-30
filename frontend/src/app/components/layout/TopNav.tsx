@@ -23,7 +23,7 @@ export function TopNav() {
     <header className="fixed inset-x-0 top-0 z-50 bg-transparent backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[110rem] items-center justify-between gap-8 px-5 sm:px-8">
         <NavLink to="/" className="group flex items-center gap-3 text-accent">
-          <Wordmark />
+          <Wordmark className="size-9" />
           <span className="flex flex-col leading-none">
             <span className="text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink">
               PurvaDrishti

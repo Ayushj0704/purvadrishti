@@ -1,4 +1,4 @@
-export function Wordmark({ className = "size-7" }: { className?: string }) {
+export function Wordmark({ className = "size-8" }: { className?: string }) {
   return (
     <img
       src="/logo.png"

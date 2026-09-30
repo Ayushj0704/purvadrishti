@@ -545,10 +545,10 @@ function close(): HTMLElement {
 }
 
 /** Three zones for the footer clocks, mirroring PageFooter's ZONES. */
-const FOOTER_ZONES = [
-  { city: "Guwahati", zone: "IST", timeZone: "Asia/Kolkata", role: "Model host" },
-  { city: "London", zone: "GMT", timeZone: "Europe/London", role: "Audit desk" },
-  { city: "New York", zone: "EST", timeZone: "America/New_York", role: "Review liaison" },
+const FOOTER_SNAPSHOT = [
+  { label: "TOP-5 RECALL", value: "50.8%", note: "Held-out test split" },
+  { label: "ROC-AUC · 60 MIN", value: "0.76", note: "Ranking quality" },
+  { label: "TIME MAE", value: "38.6 min", note: "Minutes to cash-out" },
 ];
 
 const FOOTER_LINKS = [
@@ -613,33 +613,29 @@ function footer(): HTMLElement {
             svg("circle", { cx: 12, cy: 12, r: 9 }),
             svg("path", { d: "M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" }),
           ),
-          "Global telemetry clocks",
+          "Model snapshot · XGB v0.5.0",
         ),
-        // One polite live region for all three rather than one per clock: three
-        // separate ticking times announced every second is unusable. Only the
-        // summary is announced, and only when it changes.
+        // Static evaluation figures from the held-out test split — the same
+        // numbers quoted in the evaluation section above. No ticking clocks:
+        // wall time in three cities says nothing about the product.
         h(
           "div",
           {
             class: "footer-clocks",
-            role: "status",
-            "aria-live": "polite",
-            "aria-atomic": "true",
           },
-          ...FOOTER_ZONES.map((zone) =>
+          ...FOOTER_SNAPSHOT.map((stat) =>
             h(
               "div",
               { class: "footer-clock" },
-              h("span", { class: "footer-clock-zone" }, `${zone.city} (${zone.zone})`),
+              h("span", { class: "footer-clock-zone" }, stat.label),
               h(
                 "span",
                 {
                   class: "footer-clock-time tnum",
-                  "data-zone": zone.timeZone,
                 },
-                "--:--:--",
+                stat.value,
               ),
-              h("span", { class: "footer-clock-role" }, zone.role),
+              h("span", { class: "footer-clock-role" }, stat.note),
             ),
           ),
         ),

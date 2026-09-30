@@ -1,9 +1,11 @@
 /**
- * The landing page's footer behaviour: three ticking clocks and back-to-top.
+ * The landing page's footer behaviour: back-to-top.
  *
- * Sits here rather than in sections.ts because both need a disposer - an
- * interval that outlives the page is a leak, and the landing tears its WebGL
- * field down on pagehide (see main.ts), so the footer's timer has to go with it.
+ * Sits here rather than in sections.ts because it needs a disposer - a
+ * listener that outlives the page is a leak, and the landing tears its WebGL
+ * field down on pagehide (see main.ts), so the footer's wiring has to go
+ * with it. (An earlier revision ticked three timezone clocks here; they were
+ * removed — wall time says nothing about the product.)
  */
 
 interface ZoneClock extends HTMLElement {
@@ -14,6 +16,9 @@ export function initFooter(root: ParentNode = document): () => void {
   const disposers: Array<() => void> = [];
 
   // --- Clocks ------------------------------------------------------------
+  // Retired: the footer no longer renders .footer-clock-time[data-zone]
+  // nodes. Kept guarded so a stale cached bundle ticking old markup cannot
+  // throw — the query simply finds nothing and no timer is installed.
   const clocks = Array.from(
     root.querySelectorAll<ZoneClock>(".footer-clock-time[data-zone]"),
   );

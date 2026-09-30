@@ -7,7 +7,8 @@ import { riskLevelFromScore } from "../components/ui/RiskBadge";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { Skeleton, EmptyState } from "../components/ui/EmptyState";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { Button } from "../components/ui/Button";
 import { StatusPill } from "../components/ui/StatusDot";
 import { formatTime, formatWindow, formatRiskScore } from "../lib/format";
@@ -98,7 +99,7 @@ export function Alerts() {
           />
 
           {isLoading ? (
-            <Skeleton rows={5} />
+            <Loader label="Loading alert queue…" />
           ) : loadError ? (
             <div className="flex flex-col items-center gap-4 px-5 py-10 text-center">
               <p role="alert" className="text-xs text-critical">

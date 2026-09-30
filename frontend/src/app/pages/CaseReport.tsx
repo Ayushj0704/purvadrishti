@@ -4,7 +4,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { casesApi, toTopKRows, expectedLabel } from "../api/cases";
 import type { CaseSummary, PredictResponse, ReportResponse, TrailResponse } from "../api/cases";
 import { Button } from "../components/ui/Button";
-import { Skeleton } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { formatInr, formatTime } from "../lib/format";
 import { useRole } from "../lib/useRole";
 
@@ -50,9 +50,8 @@ export function CaseReport() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-10">
-        <div className="h-10 w-64 animate-pulse bg-white/[0.04]" />
-        <Skeleton rows={8} />
+      <div className="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center">
+        <Loader label="Assembling case file…" />
       </div>
     );
   }

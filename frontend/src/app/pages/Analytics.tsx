@@ -7,7 +7,7 @@ import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { MetricRow } from "../components/ui/MetricBlock";
 import { StatusPill } from "../components/ui/StatusDot";
-import { Skeleton } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { analyticsApi } from "../api/analytics";
 import type { ModelMetrics } from "../api/analytics";
 
@@ -107,7 +107,7 @@ export function Analytics() {
 
       <Reveal>
         {isLoading ? (
-          <Skeleton rows={2} />
+          <Loader label="Loading model evaluation…" />
         ) : metricsError ? (
           <div className="flex flex-col items-center gap-4 rounded-xl border border-hairline px-5 py-10 text-center">
             <p role="alert" className="text-xs text-critical">
@@ -151,7 +151,7 @@ export function Analytics() {
               meta={<span className="label-caps text-faint">N = test split</span>}
             />
             {isLoading ? (
-              <Skeleton rows={4} />
+              <Loader label="Loading evaluation…" />
             ) : metricsError || !horizon ? (
               <p role="alert" className="px-5 py-10 text-center text-xs text-critical">
                 {metricsError || "No evaluation on record for this horizon."}

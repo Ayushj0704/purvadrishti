@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { setWorkerUrl } from "maplibre-gl";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
-import Map, { Source, Layer, NavigationControl, Popup, ScaleControl, useMap } from "react-map-gl/maplibre";
+import Map, { Source, Layer, Marker, NavigationControl, Popup, ScaleControl, useMap } from "react-map-gl/maplibre";
 import type { MapLayerMouseEvent } from "react-map-gl/maplibre";
 import type * as GeoJSON from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -53,6 +54,66 @@ function HaloAnimator() {
     return () => window.clearInterval(timer);
   }, [mapRef]);
   return null;
+}
+
+/** Replays the money trail on the map: flies victim → mules → suspects →
+ *  best bet, opening each pin's popup as it lands. The wow + the explanation
+ *  in one button. */
+function TrailReplay({
+  stops,
+  onSelect,
+}: {
+  stops: GeoJSON.Feature[];
+  onSelect: (f: GeoJSON.Feature) => void;
+}) {
+  const { current: mapRef } = useMap();
+  const [playing, setPlaying] = useState(false);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => () => {
+    timers.current.forEach((t) => window.clearTimeout(t));
+  }, []);
+
+  if (stops.length < 2) return null;
+
+  const play = () => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
+    setPlaying(true);
+    stops.forEach((s, i) => {
+      if (s.geometry.type !== "Point") return;
+      const [lng, lat] = s.geometry.coordinates as [number, number];
+      timers.current.push(
+        window.setTimeout(() => {
+          try {
+            map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 7), duration: 1500 });
+          } catch {
+            /* map mid-transition — popup still opens */
+          }
+          onSelect(s);
+          if (i === stops.length - 1) {
+            timers.current.push(window.setTimeout(() => setPlaying(false), 2000));
+          }
+        }, i * 2300),
+      );
+    });
+  };
+
+  return (
+    <div className="absolute left-3 top-3 z-10">
+      <button
+        type="button"
+        onClick={play}
+        disabled={playing}
+        className="label-caps inline-flex items-center gap-2 rounded-full border border-accent/50 bg-abyss/90 px-3.5 py-2 text-accent backdrop-blur transition-all hover:bg-accent/20 disabled:opacity-50"
+      >
+        <Play className="size-3" fill="currentColor" />
+        {playing ? "Replaying…" : "Replay money trail"}
+      </button>
+    </div>
+  );
 }
 
 interface SelectedPin {
@@ -207,6 +268,44 @@ export function RiskMap({ heatmapData, candidateAtms, entities, viewState, onMov
 
   const [selected, setSelected] = useState<SelectedPin | null>(null);
 
+  // Labelled chips for the two pins an officer must never confuse: the
+  // victim origin and the lead hypothesis. Plain dots stay for the rest.
+  const victimFeature = entities?.features.find((f) => f.properties?.kind === "victim");
+  const bestBetFeature = candidateAtms?.features.find((f) => f.properties?.best_bet === true);
+  const victimCoords =
+    victimFeature?.geometry.type === "Point"
+      ? (victimFeature.geometry.coordinates as [number, number])
+      : null;
+  const bestBetCoords =
+    bestBetFeature?.geometry.type === "Point"
+      ? (bestBetFeature.geometry.coordinates as [number, number])
+      : null;
+
+  const selectFeature = useCallback((f: GeoJSON.Feature) => {
+    if (f.geometry.type !== "Point") return;
+    const [lng, lat] = f.geometry.coordinates as [number, number];
+    setSelected({ lng, lat, props: (f.properties ?? {}) as Record<string, unknown> });
+  }, []);
+
+  // Ordered story for the replay: victim → mule hops → top suspects →
+  // best bet last. Built from whatever layers are present.
+  const story = useMemo(() => {
+    const stops: GeoJSON.Feature[] = [];
+    const ent = entities?.features ?? [];
+    const victim = ent.find((f) => f.properties?.kind === "victim");
+    if (victim) stops.push(victim);
+    stops.push(...ent.filter((f) => f.properties?.kind === "mule").slice(0, 4));
+    const atms = [...(candidateAtms?.features ?? [])].sort(
+      (a, b) => Number(b.properties?.risk_score ?? 0) - Number(a.properties?.risk_score ?? 0),
+    );
+    const best = atms.find((f) => f.properties?.best_bet === true);
+    for (const a of atms.slice(0, 3)) {
+      if (a !== best && !stops.includes(a)) stops.push(a);
+    }
+    if (best && !stops.includes(best)) stops.push(best);
+    return stops;
+  }, [entities, candidateAtms]);
+
   const handleClick = useCallback((evt: MapLayerMouseEvent) => {
     const f = evt.features?.[0];
     if (!f || f.geometry.type !== "Point") {
@@ -274,7 +373,31 @@ export function RiskMap({ heatmapData, candidateAtms, entities, viewState, onMov
           </Popup>
         )}
 
+        {victimCoords && (
+          <Marker longitude={victimCoords[0]} latitude={victimCoords[1]} anchor="bottom" offset={[0, -14]}>
+            <button
+              type="button"
+              onClick={() => victimFeature && selectFeature(victimFeature)}
+              className="label-caps rounded-full border border-critical/60 bg-abyss/90 px-2 py-1 text-critical backdrop-blur"
+            >
+              Victim
+            </button>
+          </Marker>
+        )}
+        {bestBetCoords && bestBetFeature && (
+          <Marker longitude={bestBetCoords[0]} latitude={bestBetCoords[1]} anchor="bottom" offset={[0, -16]}>
+            <button
+              type="button"
+              onClick={() => selectFeature(bestBetFeature)}
+              className="label-caps rounded-full border border-accent/60 bg-abyss/90 px-2 py-1 text-accent backdrop-blur"
+            >
+              ★ Best bet
+            </button>
+          </Marker>
+        )}
+
         <HaloAnimator />
+        <TrailReplay stops={story} onSelect={selectFeature} />
       </Map>
 
       <div className="pointer-events-none absolute bottom-3 right-3 flex flex-col items-end gap-1">
@@ -305,6 +428,10 @@ export function RiskMap({ heatmapData, candidateAtms, entities, viewState, onMov
               <span className="flex items-center gap-1.5">
                 <span className="size-2 rounded-full" style={{ background: "#f4f4f5" }} />
                 <span className="micro text-faint">Victim</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full" style={{ background: "#a1a1aa" }} />
+                <span className="micro text-faint">Mule</span>
               </span>
             </>
           )}

@@ -6,7 +6,8 @@ import type { CaseSummary } from "../api/cases";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { Skeleton, EmptyState } from "../components/ui/EmptyState";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { StatusPill } from "../components/ui/StatusDot";
 import { RiskBadge } from "../components/ui/RiskBadge";
 import { Button } from "../components/ui/Button";
@@ -333,7 +334,7 @@ export function Cases() {
           </div>
 
           {isLoading ? (
-            <Skeleton rows={6} />
+            <Loader label="Loading case register…" />
           ) : loadError ? (
             <div className="flex flex-col items-center gap-4 px-5 py-10 text-center">
               <p role="alert" className="text-xs text-critical">

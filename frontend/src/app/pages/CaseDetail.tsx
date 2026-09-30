@@ -18,7 +18,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { Skeleton } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { StatusPill } from "../components/ui/StatusDot";
 import { Button, ButtonLink } from "../components/ui/Button";
 import { formatInr, formatWindow } from "../lib/format";
@@ -186,11 +186,11 @@ export function CaseDetail() {
 
   if (!ready) {
     return (
-      <div className="flex flex-col gap-10">
-        <div className="h-10 w-64 animate-pulse bg-white/[0.04]" />
-        <Skeleton rows={6} />
-        <p className="telemetry text-faint">
-          {scoring ? "Scoring candidates…" : "Loading case file…"}
+      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-6 text-center">
+        <Loader label={scoring ? "Scoring candidates against live model…" : "Loading case file…"} />
+        <p className="max-w-sm text-xs leading-relaxed text-faint">
+          Pulling complaint, predictions, timeline, trail and alerts together — the file
+          opens complete, never half-empty.
         </p>
       </div>
     );

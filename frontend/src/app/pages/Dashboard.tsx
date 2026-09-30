@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as GeoJSON from "geojson";
 import { FilterBar } from "../components/FilterBar";
 import type { FilterState } from "../components/FilterBar";
@@ -10,7 +10,7 @@ import { FolderFloat } from "../components/ui/FolderFloat";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
-import { Skeleton } from "../components/ui/EmptyState";
+import { Loader } from "../components/ui/Loader";
 import { StatusPill } from "../components/ui/StatusDot";
 import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, trailToEntities, HORIZON_OPTIONS } from "../api";
 import { canWrite, useRole } from "../lib/useRole";
@@ -60,6 +60,8 @@ export function Dashboard() {
   const [rankingNote, setRankingNote] = useState("");
   const [topCaseId, setTopCaseId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const [booted, setBooted] = useState(false);
+  const bootedRef = useRef(false);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [minRisk, setMinRisk] = useState("ALL");
@@ -73,7 +75,11 @@ export function Dashboard() {
     let cancelled = false;
 
     const load = async () => {
-      setIsLoading(true);
+      // First load blanks to the radar loader; later refreshes (filters,
+      // horizon, retry) keep stale data on screen with an updating note —
+      // never a flash of empty boxes.
+      const first = !bootedRef.current;
+      if (first) setIsLoading(true);
       const failed: string[] = [];
 
       // National risk layer — real H3 cells from the model.
@@ -140,6 +146,8 @@ export function Dashboard() {
         setLoadErrors(failed);
         setSyncedAt(new Date());
         setIsLoading(false);
+        bootedRef.current = true;
+        setBooted(true);
       }
     };
 
@@ -163,17 +171,18 @@ export function Dashboard() {
     };
   }, [candidateAtms, minRisk]);
 
+  const refreshing = isLoading && booted;
   const metrics: Metric[] = [
     {
       index: "A",
       label: "Active alerts",
-      value: String(alerts.length),
+      value: !booted ? "—" : String(alerts.length),
       note: "Requires investigator review",
     },
     {
       index: "B",
       label: "High-risk zones",
-      value: String(heatmapData?.features.length ?? 0),
+      value: !booted ? "—" : String(heatmapData?.features.length ?? 0),
       note: "H3 resolution 8 cells",
     },
     {
@@ -314,12 +323,13 @@ export function Dashboard() {
                 </label>
                 <span className="telemetry text-faint">
                   {visibleAtms?.features.length ?? 0} pins
+                  {refreshing ? " · updating…" : ""}
                 </span>
               </div>
               <div className="h-[clamp(24rem,52vh,40rem)]">
-                {isLoading ? (
-                  <div className="flex h-full flex-col justify-center p-5">
-                    <Skeleton rows={5} label="Loading live map layers…" />
+                {!booted ? (
+                  <div className="flex h-full flex-col justify-center">
+                    <Loader label="Loading live map layers…" />
                   </div>
                 ) : (
                   <RiskMap heatmapData={heatmapData} candidateAtms={visibleAtms} entities={entities} />
@@ -330,7 +340,7 @@ export function Dashboard() {
 
           <div className="flex flex-col gap-8 xl:col-span-4">
             <Reveal delay={80}>
-              <TopKTable predictions={predictions} isLoading={isLoading} index="03" caseId={topCaseId} rankingNote={rankingNote} />
+              <TopKTable predictions={predictions} isLoading={!booted} index="03" caseId={topCaseId} rankingNote={rankingNote} />
               {!writable && !isLoading && (
                 <p className="mt-3 px-1 text-[0.6875rem] text-faint">
                   Candidate scoring requires the LEA Officer role or above — your read-only view shows heat and alerts.
@@ -344,11 +354,13 @@ export function Dashboard() {
                   index="04"
                   title="Latest alerts"
                   meta={
-                    <span className="label-caps tnum text-faint">{alerts.length} live</span>
+                    <span className="label-caps tnum text-faint">
+                      {!booted ? "…" : `${alerts.length} live${refreshing ? " · updating" : ""}`}
+                    </span>
                   }
                 />
-                {isLoading ? (
-                  <Skeleton rows={4} />
+                {!booted ? (
+                  <Loader label="Loading live alerts…" />
                 ) : alerts.length > 0 ? (
                   alerts.map((alert) => <AlertRow key={alert.alert_id} alert={alert} />)
                 ) : (

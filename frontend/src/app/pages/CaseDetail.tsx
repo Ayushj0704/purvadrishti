@@ -68,7 +68,7 @@ export function CaseDetail() {
   const [trail, setTrail] = useState<TrailResponse | null>(null);
   const [openAlert, setOpenAlert] = useState<Alert | null>(null);
   const [actionNote, setActionNote] = useState("");
-  const [acting, setActing] = useState(false);
+  const [acting, setActing] = useState<"ack" | "notify" | null>(null);
   const [modelVersion, setModelVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
@@ -224,7 +224,7 @@ export function CaseDetail() {
 
   const handleAcknowledge = async () => {
     if (!openAlert) return;
-    setActing(true);
+    setActing("ack");
     setActionNote("");
     try {
       await alertsApi.acknowledgeAlert(openAlert.alert_id);
@@ -233,7 +233,7 @@ export function CaseDetail() {
     } catch {
       setActionNote("Acknowledge failed. Check the API connection and retry.");
     } finally {
-      setActing(false);
+      setActing(null);
     }
   };
 
@@ -244,7 +244,7 @@ export function CaseDetail() {
       setActionNote("No alert on record for this case yet — scoring has not crossed the threshold.");
       return;
     }
-    setActing(true);
+    setActing("notify");
     setActionNote("");
     try {
       const res = await alertsApi.notifyAlert(target.alert_id);
@@ -253,7 +253,7 @@ export function CaseDetail() {
     } catch {
       setActionNote("Re-dispatch failed. Check the API connection and retry.");
     } finally {
-      setActing(false);
+      setActing(null);
     }
   };
 
@@ -451,7 +451,7 @@ export function CaseDetail() {
                 <Button
                   size="sm"
                   onClick={handleAcknowledge}
-                  disabled={!writable || acting || !openAlert}
+                  disabled={!writable || acting !== null || !openAlert}
                   title={
                     !writable
                       ? "Requires LEA Officer role or above"
@@ -461,12 +461,17 @@ export function CaseDetail() {
                   }
                 >
                   <Check className="size-3" />
-                  Acknowledge alert
+                  {acting === "ack" ? "Saving…" : "Acknowledge alert"}
                 </Button>
-                <Button size="sm" onClick={handleNotify} disabled={!writable || acting}>
+                <Button size="sm" onClick={handleNotify} disabled={!writable || acting !== null}>
                   <Send className="size-3" />
-                  Re-dispatch SMS / Email
+                  {acting === "notify" ? "Sending…" : "Re-dispatch SMS / Email"}
                 </Button>
+                {acting && (
+                  <span className="telemetry text-faint" role="status">
+                    Working…
+                  </span>
+                )}
               </div>
               {actionNote && (
                 <p role="status" className="border-t border-hairline px-5 py-3 text-xs text-muted">

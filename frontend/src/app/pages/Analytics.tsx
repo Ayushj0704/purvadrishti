@@ -20,12 +20,15 @@ interface VelocityPoint {
 export function Analytics() {
   const [isLoading, setIsLoading] = useState(true);
   const [metrics, setMetrics] = useState<ModelMetrics | null>(null);
+  const [metricsError, setMetricsError] = useState("");
   const [velocity, setVelocity] = useState<VelocityPoint[]>([]);
   const [velocityLoading, setVelocityLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
+    setMetricsError("");
     setVelocityLoading(true);
 
     analyticsApi
@@ -34,7 +37,10 @@ export function Analytics() {
         if (!cancelled) setMetrics(m);
       })
       .catch(() => {
-        if (!cancelled) setMetrics(null);
+        if (!cancelled) {
+          setMetrics(null);
+          setMetricsError("Model metrics unreachable. Check the API connection and retry.");
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -66,7 +72,7 @@ export function Analytics() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const horizon = metrics?.horizons["60"];
   const recallBars = horizon
@@ -100,9 +106,23 @@ export function Analytics() {
       />
 
       <Reveal>
-        {isLoading || !metrics || !horizon ? (
+        {isLoading ? (
           <Skeleton rows={2} />
+        ) : metricsError ? (
+          <div className="flex flex-col items-center gap-4 rounded-xl border border-hairline px-5 py-10 text-center">
+            <p role="alert" className="text-xs text-critical">
+              {metricsError}
+            </p>
+            <button
+              type="button"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="label-caps rounded-md border border-hairline px-3 py-2 text-muted transition-colors hover:border-accent hover:text-ink"
+            >
+              Retry
+            </button>
+          </div>
         ) : (
+          metrics && horizon && (
           <MetricRow
             items={[
               { index: "A", label: "ROC-AUC", value: metrics.test_roc_auc.toFixed(2), note: "60-minute horizon" },
@@ -111,6 +131,7 @@ export function Analytics() {
               { index: "D", label: "Horizons", value: String(Object.keys(metrics.horizons).length), note: "30 / 60 / 240 / 720 min" },
             ]}
           />
+          )
         )}
       </Reveal>
 
@@ -129,8 +150,12 @@ export function Analytics() {
               title="Recall @ K"
               meta={<span className="label-caps text-faint">N = test split</span>}
             />
-            {isLoading || !horizon ? (
+            {isLoading ? (
               <Skeleton rows={4} />
+            ) : metricsError || !horizon ? (
+              <p role="alert" className="px-5 py-10 text-center text-xs text-critical">
+                {metricsError || "No evaluation on record for this horizon."}
+              </p>
             ) : (
               <RecallAtKChart
                 data={recallBars}

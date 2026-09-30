@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { Login } from "./pages/Login";
@@ -17,9 +18,21 @@ import { Analytics } from "./pages/Analytics";
  */
 const BASENAME = "/dashboard";
 
+/** React Router keeps scroll across navigations — without this, following a
+ *  link (or the demo sequence jumping pages) lands you wherever the last
+ *  page's scroll was, usually the bottom. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter basename={BASENAME}>
+      <ScrollToTop />
       <Routes>
         <Route path="/login" element={<Login />} />
 

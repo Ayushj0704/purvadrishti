@@ -307,6 +307,37 @@
     animation: var(--animate-rise);
   }
 
+  /* ---- Skeleton loader ----
+     Bright bars with a travelling sheen (not a faint pulse): loading must
+     read as activity on a near-black canvas, never as a blank page. */
+  @keyframes skeleton-sheen {
+    from {
+      background-position: 180% 0;
+    }
+    to {
+      background-position: -80% 0;
+    }
+  }
+
+  .skeleton-bar {
+    background-color: rgba(255, 255, 255, 0.075);
+    background-image: linear-gradient(
+      100deg,
+      transparent 25%,
+      rgba(255, 255, 255, 0.16) 50%,
+      transparent 75%
+    );
+    background-size: 220% 100%;
+    animation: skeleton-sheen 1.5s linear infinite;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-bar {
+      animation: none;
+    }
+  }
+
   /* ---- Kinetic type ---- */
   .marquee-track {
     display: flex;

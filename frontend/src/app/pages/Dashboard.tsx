@@ -318,9 +318,8 @@ export function Dashboard() {
               </div>
               <div className="h-[clamp(24rem,52vh,40rem)]">
                 {isLoading ? (
-                  <div className="flex h-full flex-col justify-center gap-3 p-5">
-                    <Skeleton rows={5} />
-                    <p className="telemetry text-center text-faint">Loading live layers…</p>
+                  <div className="flex h-full flex-col justify-center p-5">
+                    <Skeleton rows={5} label="Loading live map layers…" />
                   </div>
                 ) : (
                   <RiskMap heatmapData={heatmapData} candidateAtms={visibleAtms} entities={entities} />

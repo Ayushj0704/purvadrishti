@@ -15,5 +15,7 @@ services:
         generateValue: true
       - key: AUTH_ENABLED
         value: "false"
+      - key: CORS_ORIGINS
+        sync: false
       - key: ALERT_CHANNELS
         value: dashboard,webhook

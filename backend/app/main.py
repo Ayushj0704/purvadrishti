@@ -14,10 +14,29 @@ from app.db.models import Case, ATM, Prediction, Alert
 from app.services.candidate_service import generate_candidates
 from app.ml.predict import score_multi, model_available, model_label, get_thresholds, _load as _load_model
 from app.geo.spatial import risk_level
+from app.api.deps import require_roles
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="PurvaDrishti Backend", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+def _cors_origins() -> list[str]:
+    raw = (settings.cors_origins or "*").strip()
+    if raw == "*":
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+_CORS_ORIGINS = _cors_origins()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    # Browsers reject wildcard origins + credentials; only send
+    # Access-Control-Allow-Credentials for an explicit allow-list.
+    allow_credentials=_CORS_ORIGINS != ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 EVENT_QUEUE: asyncio.Queue = asyncio.Queue()
 
@@ -116,7 +135,8 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
     return {"access_token": create_token(body.username, u["role"]), "role": u["role"]}
 
 @app.post("/api/v1/cases")
-def create_case(body: CaseIn, db: Session = Depends(get_db)):
+def create_case(body: CaseIn, db: Session = Depends(get_db),
+                role: str = Depends(require_roles("LEA_OFFICER"))):
     rid = str(uuid.uuid4())[:8]
     ext = body.external_case_id or f"C-{int(time.time())}"
     lat = (body.victim_location or {}).get("lat")
@@ -146,10 +166,8 @@ def create_case(body: CaseIn, db: Session = Depends(get_db)):
              suspect_address=body.suspect_address, suspect_url=body.suspect_url)
     db.add(c); db.commit(); db.refresh(c)
     log.info(f"case_created case_id={c.id}")
+    audit(db, role, "create", "case", c.id)
     return {"case_id": c.id, "external_case_id": ext, "request_id": rid}
-
-from app.api.deps import require_roles
-
 
 class IngestIn(CaseIn):
     """I4C/CFCFRMS portal push (auto-fetch path). Same NCRP shape + source."""
@@ -206,7 +224,8 @@ class TxnIn(BaseModel):
     lon: float | None = None
 
 @app.post("/api/v1/cases/{case_id}/transactions")
-def add_txn(case_id: int, body: TxnIn, db: Session = Depends(get_db)):
+def add_txn(case_id: int, body: TxnIn, db: Session = Depends(get_db),
+            role: str = Depends(require_roles("LEA_OFFICER"))):
     from app.db.models import Transaction
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
@@ -216,24 +235,34 @@ def add_txn(case_id: int, body: TxnIn, db: Session = Depends(get_db)):
                     transaction_type=body.transaction_type, bank=body.bank,
                     lat=body.lat, lon=body.lon)
     db.add(t); db.commit()
+    audit(db, role, "add_transaction", "case", case_id)
     return {"ok": True, "txn_id": t.id}
 
 @app.get("/api/v1/cases/{case_id}/transactions")
-def list_txn(case_id: int, db: Session = Depends(get_db)):
+def list_txn(case_id: int, db: Session = Depends(get_db),
+             role: str = Depends(require_roles("BANK_ANALYST"))):
     from app.db.models import Transaction
     return [{"txn_id": t.id, "transaction_id": t.transaction_id, "amount": t.amount,
              "type": t.transaction_type, "bank": t.bank}
             for t in db.query(Transaction).filter(Transaction.case_id == case_id).limit(100).all()]
 
 @app.get("/api/v1/cases")
-def list_cases(db: Session = Depends(get_db)):
+def list_cases(db: Session = Depends(get_db),
+               role: str = Depends(require_roles("BANK_ANALYST"))):
     return [{"case_id": c.id, "external_case_id": c.external_case_id,
-             "fraud_type": c.fraud_type, "amount": c.amount,
-             "status": c.status} for c in db.query(Case).limit(100).all()]
+             "fraud_type": c.fraud_type,
+             "crime_subcategory": c.crime_subcategory,
+             "amount": c.amount, "fraud_amount": c.fraud_amount,
+             "status": c.status,
+             "reported_at": c.reported_at.isoformat() if c.reported_at else None,
+             "complainant_state": c.complainant_state,
+             "incident_state": c.incident_state}
+            for c in db.query(Case).order_by(Case.id.desc()).limit(100).all()]
 
 @app.get("/api/v1/cases/samples")
 def sample_cases(limit: int = 20, state: str | None = None,
-                 db: Session = Depends(get_db)):
+                 db: Session = Depends(get_db),
+                 role: str = Depends(require_roles("BANK_ANALYST"))):
     """Demo pool for 'Simulate I4C portal fetch': random seeded cases.
     Real deployment replaces this with the CFCFRMS poller."""
     import random as _r
@@ -248,15 +277,22 @@ def sample_cases(limit: int = 20, state: str | None = None,
              "source": getattr(c, "source", "manual")} for c in picks]
 
 @app.get("/api/v1/cases/{case_id}")
-def get_case(case_id: int, db: Session = Depends(get_db)):
+def get_case(case_id: int, db: Session = Depends(get_db),
+             role: str = Depends(require_roles("BANK_ANALYST"))):
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
     return {"case_id": c.id, "external_case_id": c.external_case_id,
-            "fraud_type": c.fraud_type, "amount": c.amount, "status": c.status,
+            "fraud_type": c.fraud_type, "crime_subcategory": c.crime_subcategory,
+            "amount": c.amount, "fraud_amount": c.fraud_amount,
+            "status": c.status,
+            "reported_at": c.reported_at.isoformat() if c.reported_at else None,
+            "complainant_state": c.complainant_state,
+            "incident_state": c.incident_state,
             "victim_location": {"lat": c.victim_lat, "lon": c.victim_lon}}
 
 @app.get("/api/v1/cases/{case_id}/candidates")
-def candidates(case_id: int, db: Session = Depends(get_db)):
+def candidates(case_id: int, db: Session = Depends(get_db),
+               role: str = Depends(require_roles("BANK_ANALYST"))):
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
     return {"case_id": case_id,
@@ -265,7 +301,8 @@ def candidates(case_id: int, db: Session = Depends(get_db)):
                            for a in generate_candidates(db, c)]}
 
 @app.post("/api/v1/cases/{case_id}/predictions")
-async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
+async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
+                  role: str = Depends(require_roles("LEA_OFFICER"))):
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
     # P1: use in-memory ATM cache if populated, else fall back to DB
@@ -323,6 +360,7 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
             expect = None  # beyond +12h / low conviction — no clock claim
         exp_min = m.get("expected_min")
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
+                      "state": a.state,
                       "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
@@ -384,11 +422,40 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db)):
             "heat_watch": heat_watch,
             "predictions": preds}
 
+def _cell_geometry(key: str, atm) -> dict:
+    """Real H3 polygon + centroid for the heatmap GeoJSON adapter.
+
+    Returns {"lat", "lon", "boundary": [[lat, lon], ...]} derived from the
+    H3 index via h3-py (best-effort — never raises). Cells keyed by a raw
+    "lat,lon" fallback or ATM row degrade to a point centroid.
+    """
+    try:
+        import h3 as _h3
+        if _h3.is_valid_cell(key):
+            lat, lon = _h3.cell_to_latlng(key)
+            ring = [[float(la), float(lo)] for (la, lo) in _h3.cell_to_boundary(key)]
+            return {"lat": lat, "lon": lon, "boundary": ring}
+    except Exception as e:
+        log.warning(f"h3 geometry failed for {key}: {e}")
+    try:  # "lat,lon" fallback key
+        la, lo = key.split(",")
+        return {"lat": float(la), "lon": float(lo), "boundary": []}
+    except Exception:
+        pass
+    if atm is not None:
+        try:
+            return {"lat": float(atm.lat), "lon": float(atm.lon), "boundary": []}
+        except Exception:
+            pass
+    return {"lat": None, "lon": None, "boundary": []}
+
+
 @app.get("/api/v1/risk/hotspots")
 def hotspots(state: str | None = None, risk: str | None = None,
              min_score: float = 0.0, limit: int = 200,
              category: str | None = None, hours_back: int | None = None,
-             db: Session = Depends(get_db)):
+             db: Session = Depends(get_db),
+             role: str = Depends(require_roles("BANK_ANALYST"))):
     from datetime import datetime as _dt, timedelta as _td
     q = db.query(Prediction).join(Case, Prediction.case_id == Case.id)
     if category:
@@ -410,15 +477,93 @@ def hotspots(state: str | None = None, risk: str | None = None,
         if key not in cells or cells[key]["risk_score"] < p.prediction_score:
             cells[key] = {"h3_cell": key, "risk_score": p.prediction_score,
                           "risk_level": p.risk_level, "active_cases": 1,
-                          "state": a.state if a else ""}
+                          "state": a.state if a else "",
+                          **_cell_geometry(key, a)}
     out = sorted(cells.values(), key=lambda c: -c["risk_score"])[:limit]
     return {"cells": out, "count": len(out)}
 
+
+@app.get("/api/v1/activity/velocity")
+def velocity(hours: int = 24, db: Session = Depends(get_db),
+             role: str = Depends(require_roles("BANK_ANALYST"))):
+    """Pipeline throughput: hourly buckets of inbound complaints vs generated
+    predictions over the trailing window (powers the Analytics velocity chart
+    with observed counts — no sampling, no synthesis)."""
+    from datetime import datetime as _dt, timedelta as _td
+    hours = max(1, min(hours, 168))
+    now = _dt.utcnow().replace(minute=0, second=0, microsecond=0)
+    start = now - _td(hours=hours - 1)
+    buckets = []
+    for i in range(hours):
+        t0 = start + _td(hours=i)
+        t1 = t0 + _td(hours=1)
+        nc = db.query(Case).filter(
+            Case.reported_at >= t0, Case.reported_at < t1).count()
+        np_ = db.query(Prediction).filter(
+            Prediction.generated_at >= t0, Prediction.generated_at < t1).count()
+        buckets.append({"t": t0.isoformat(), "complaints": nc,
+                        "predictions": np_})
+    return {"hours": hours, "buckets": buckets}
+
+
+@app.get("/api/v1/model/metrics")
+def model_metrics(role: str = Depends(require_roles("BANK_ANALYST"))):
+    """Held-out evaluation of the deployed model (mirrors the training
+    meta.json): per-horizon recall/ROC plus the time-regressor MAE."""
+    import pathlib as _pl
+    import json as _json
+    meta_path = _pl.Path(__file__).parent / "ml" / "models" / "meta.json"
+    try:
+        meta = _json.loads(meta_path.read_text())
+    except Exception as e:
+        raise HTTPException(500, f"model metadata unavailable: {e}")
+    return {
+        "model_name": meta.get("model_name"),
+        "model_version": meta.get("model_version"),
+        "trained_at": meta.get("trained_at"),
+        "horizon_minutes": meta.get("horizon_minutes"),
+        "horizons": {
+            k: {"minutes": v.get("minutes"),
+                "test_roc_auc": v.get("test_roc_auc"),
+                "test_top5_recall": v.get("test_top5_recall"),
+                "test_top1_recall": v.get("test_top1_recall"),
+                "positives": v.get("positives")}
+            for k, v in (meta.get("horizons") or {}).items()
+        },
+        "test_roc_auc": meta.get("test_roc_auc"),
+        "test_top5_recall": meta.get("test_top5_recall"),
+        "test_top1_recall": meta.get("test_top1_recall"),
+        "time_mae_min": (meta.get("time_model") or {}).get("test_mae_min"),
+    }
+
 @app.get("/api/v1/alerts")
-def list_alerts(db: Session = Depends(get_db)):
-    return [{"alert_id": a.id, "case_id": a.case_id, "severity": a.severity,
-             "status": a.status, "message": a.message}
-            for a in db.query(Alert).order_by(Alert.id.desc()).limit(100).all()]
+def list_alerts(db: Session = Depends(get_db),
+                role: str = Depends(require_roles("BANK_ANALYST"))):
+    from app.db.models import Prediction, ATM
+    from datetime import datetime, timedelta
+    
+    results = []
+    alerts = db.query(Alert).order_by(Alert.id.desc()).limit(100).all()
+    for a in alerts:
+        p = db.query(Prediction).filter(Prediction.id == a.prediction_id).first() if a.prediction_id else None
+        atm = db.query(ATM).filter(ATM.id == p.atm_id).first() if p else None
+        
+        c_at = a.created_at or datetime.utcnow()
+        w_start = c_at
+        w_end = c_at + timedelta(hours=1)
+        
+        results.append({
+            "alert_id": str(a.id),
+            "case_id": a.case_id,
+            "atm_id": atm.atm_code if atm else (a.message.split(" ")[2] if "Predicted" in a.message else "Unknown"),
+            "risk_score": p.prediction_score if p else (0.9 if a.severity == "CRITICAL" else 0.7),
+            "confidence": a.severity,
+            "prediction_window_start": w_start.isoformat(),
+            "prediction_window_end": w_end.isoformat(),
+            "created_at": c_at.isoformat(),
+            "status": "NEW" if a.status == "OPEN" else a.status
+        })
+    return results
 
 @app.post("/api/v1/alerts/{alert_id}/acknowledge")
 def ack(alert_id: int, db: Session = Depends(get_db),
@@ -429,8 +574,42 @@ def ack(alert_id: int, db: Session = Depends(get_db),
     audit(db, role, "acknowledge", "alert", alert_id)
     return {"alert_id": alert_id, "status": "ACKED"}
 
+
+class NotifyIn(BaseModel):
+    emails: list[str] = []
+    phones: list[str] = []
+
+
+@app.post("/api/v1/alerts/{alert_id}/notify")
+async def notify_alert(alert_id: int, body: NotifyIn,
+                       db: Session = Depends(get_db),
+                       role: str = Depends(require_roles("LEA_OFFICER"))):
+    """Manual re-dispatch trigger for SMS/Email/Webhook channels (PS SMS/Email
+    capability). Sends via configured providers; when keys are missing the
+    attempt is logged with provider-missing status (see providers.fan_out)."""
+    from app.db.models import Prediction
+    a = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not a: raise HTTPException(404, "alert not found")
+    p = db.query(Prediction).filter(
+        Prediction.id == a.prediction_id).first() if a.prediction_id else None
+    atm_code = "Unknown"
+    score = 0.0
+    window = None
+    if p:
+        atm = db.query(ATM).filter(ATM.id == p.atm_id).first()
+        atm_code = atm.atm_code if atm else f"ATM-{p.atm_id}"
+        score = p.prediction_score
+    from app.notifications.providers import fan_out
+    delivery = await fan_out(a.id, a.case_id, a.severity, atm_code, score,
+                             window, EVENT_QUEUE,
+                             emails=body.emails, phones=body.phones)
+    audit(db, role, "notify", "alert", alert_id)
+    log.info(f"alert_notify alert_id={alert_id} {delivery}")
+    return {"alert_id": alert_id, "delivery": delivery}
+
 @app.get("/api/v1/cases/{case_id}/timeline")
-def timeline(case_id: int, db: Session = Depends(get_db)):
+def timeline(case_id: int, db: Session = Depends(get_db),
+             role: str = Depends(require_roles("BANK_ANALYST"))):
     """Investigator timeline: complaint → txns → withdrawals → predictions → alerts."""
     from app.db.models import Transaction, Withdrawal
     c = db.query(Case).filter(Case.id == case_id).first()
@@ -457,7 +636,8 @@ def timeline(case_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/cases/{case_id}/explanations")
-def explanations(case_id: int, db: Session = Depends(get_db)):
+def explanations(case_id: int, db: Session = Depends(get_db),
+                 role: str = Depends(require_roles("BANK_ANALYST"))):
     """Top prediction + honest feature values behind its reasons."""
     from app.ml.features import build_features_batch, FEATURES
     c = db.query(Case).filter(Case.id == case_id).first()
@@ -475,7 +655,8 @@ def explanations(case_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/cases/{case_id}/similar-cases")
-def similar_cases(case_id: int, limit: int = 5, db: Session = Depends(get_db)):
+def similar_cases(case_id: int, limit: int = 5, db: Session = Depends(get_db),
+                  role: str = Depends(require_roles("BANK_ANALYST"))):
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
     lo, hi = (c.fraud_amount or 0) * 0.5, (c.fraud_amount or 0) * 2.0 + 1
@@ -490,7 +671,8 @@ def similar_cases(case_id: int, limit: int = 5, db: Session = Depends(get_db)):
 
 
 @app.post("/api/v1/cases/{case_id}/report")
-def report(case_id: int, db: Session = Depends(get_db)):
+def report(case_id: int, db: Session = Depends(get_db),
+           role: str = Depends(require_roles("BANK_ANALYST"))):
     """Draft intelligence report from REAL backend rows only (DEMO data
     labelled; nothing invented — LLM wording layer may polish later)."""
     from app.db.models import Transaction
@@ -518,7 +700,8 @@ def report(case_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/v1/cases/{case_id}/trail")
-def trail(case_id: int, db: Session = Depends(get_db)):
+def trail(case_id: int, db: Session = Depends(get_db),
+          role: str = Depends(require_roles("BANK_ANALYST"))):
     """Money-trail graph for chain visualisation:
     victim → L1 mule → L2 mules → top predicted ATMs (nodes + edges)."""
     import networkx as nx
@@ -555,6 +738,11 @@ def trail(case_id: int, db: Session = Depends(get_db)):
     except Exception:
         order = list(G.nodes)
         depth = None
+    # add_edge auto-creates endpoint nodes without attrs — backfill so every
+    # node carries kind/label for the graph adapter.
+    for n in G.nodes:
+        G.nodes[n].setdefault("kind", "mule")
+        G.nodes[n].setdefault("label", str(n)[-9:])
     return {"case_id": case_id,
             "nodes": [{"id": n, **G.nodes[n]} for n in order],
             "edges": [{"from": u, "to": v, **G.edges[u, v]} for u, v in G.edges],
@@ -574,7 +762,7 @@ def test_page():
     return p.read_text() if p.exists() else "<a href='/docs'>/docs</a>"
 
 @app.get("/api/v1/events/stream")
-async def sse():
+async def sse(role: str = Depends(require_roles("BANK_ANALYST"))):
     async def gen():
         yield ": connected\n\n"
         while True:

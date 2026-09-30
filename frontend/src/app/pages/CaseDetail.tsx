@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Send } from "lucide-react";
 
-import { casesApi, toTopKRows } from "../api/cases";
-import type { CaseSummary, PredictResponse, TrailResponse } from "../api/cases";
+import { casesApi, toTopKRows, toAtmPoints, expectedLabel, HORIZON_OPTIONS } from "../api/cases";
+import type { CaseSummary, PredictResponse, TrailResponse, PredictionCandidate } from "../api/cases";
+import { alertsApi } from "../api/alerts";
+import type { Alert } from "../api/alerts";
 import { ShapContributionChart } from "../charts/ShapContributionChart";
 import type { ShapFeature } from "../charts/ShapContributionChart";
 import { InvestigationTimeline } from "../components/InvestigationTimeline";
@@ -11,13 +13,16 @@ import type { TimelineEvent, TimelineKind } from "../components/InvestigationTim
 import type { TimelineItem } from "../api/cases";
 import { TopKTable } from "../components/TopKTable";
 import { TransactionGraph } from "../components/TransactionGraph";
+import { RiskMap } from "../map/RiskMap";
 import { PageHeader } from "../components/ui/PageHeader";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { Skeleton } from "../components/ui/EmptyState";
 import { StatusPill } from "../components/ui/StatusDot";
+import { Button } from "../components/ui/Button";
 import { formatInr, formatWindow } from "../lib/format";
+import { canWrite, useRole } from "../lib/useRole";
 
 const TIMELINE_KIND: Record<TimelineItem["kind"], TimelineKind> = {
   complaint: "COMPLAINT",
@@ -52,14 +57,21 @@ function featuresToShap(features: Record<string, number>): ShapFeature[] {
 
 export function CaseDetail() {
   const { id } = useParams<{ id: string }>();
+  const role = useRole();
+  const writable = canWrite(role);
   const [caseData, setCaseData] = useState<CaseSummary | null>(null);
+  const [horizon, setHorizon] = useState(60);
   const [predictions, setPredictions] = useState<PredictResponse | null>(null);
   const [explanation, setExplanation] = useState<ShapFeature[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [timelineTotal, setTimelineTotal] = useState(0);
   const [trail, setTrail] = useState<TrailResponse | null>(null);
+  const [openAlert, setOpenAlert] = useState<Alert | null>(null);
+  const [actionNote, setActionNote] = useState("");
+  const [acting, setActing] = useState(false);
   const [modelVersion, setModelVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  const [scoring, setScoring] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -74,20 +86,14 @@ export function CaseDetail() {
         if (cancelled) return;
         setCaseData(c);
 
-        const [pred, expl, tl, tr] = await Promise.all([
-          casesApi.predict(id, { horizon_minutes: 60 }).catch(() => null),
+        const [expl, tl] = await Promise.all([
           casesApi.getExplanations(id).catch(() => null),
           casesApi.getTimeline(id).catch(() => null),
-          casesApi.getTrail(id).catch(() => null),
         ]);
         if (cancelled) return;
-        if (pred) {
-          setPredictions(pred);
-          setModelVersion(pred.model_version);
-        }
         if (expl) {
           setExplanation(featuresToShap(expl.features));
-          if (!pred) setModelVersion(expl.model_version);
+          setModelVersion(expl.model_version);
         }
         if (tl) {
           // Cap a runaway event list (every scored candidate logs a row) —
@@ -101,7 +107,6 @@ export function CaseDetail() {
           setTimeline(mapped.slice(-30));
           setTimelineTotal(mapped.length);
         }
-        if (tr) setTrail(tr);
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
@@ -114,6 +119,35 @@ export function CaseDetail() {
       cancelled = true;
     };
   }, [id]);
+
+  // Horizon-scoped scoring: re-runs the model at the selected horizon and
+  // refreshes every surface derived from predictions.
+  useEffect(() => {
+    if (!id || !caseData) return;
+    let cancelled = false;
+    setScoring(true);
+
+    const score = async () => {
+      const [pred, tr, al] = await Promise.all([
+        writable ? casesApi.predict(id, { horizon_minutes: horizon }).catch(() => null) : null,
+        casesApi.getTrail(id).catch(() => null),
+        alertsApi.getAlerts().catch(() => [] as Alert[]),
+      ]);
+      if (cancelled) return;
+      if (pred) {
+        setPredictions(pred);
+        setModelVersion(pred.model_version);
+      }
+      if (tr) setTrail(tr);
+      setOpenAlert(al.find((a) => a.case_id === Number(id) && a.status === "NEW") ?? null);
+      setScoring(false);
+    };
+
+    score();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, caseData, horizon, writable]);
 
   if (isLoading) {
     return (
@@ -129,6 +163,13 @@ export function CaseDetail() {
   }
 
   const rows = predictions ? toTopKRows(predictions.predictions) : [];
+  const atmPoints = useMemo(() => {
+    const heatByAtm = new Map(
+      (predictions?.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
+    );
+    for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
+    return toAtmPoints(rows);
+  }, [rows, predictions]);
   const featureMeta = modelVersion === "" ? "model features" : modelVersion;
   const top = predictions?.predictions[0];
   const windowLabel = top?.expected_between
@@ -146,6 +187,45 @@ export function CaseDetail() {
     },
     { label: "Prediction window", value: windowLabel },
   ];
+
+  const best: PredictionCandidate | undefined =
+    rows.find((r) => r.best_bet) ?? rows[0];
+  const heatWatch = predictions?.heat_watch ?? [];
+
+  const handleAcknowledge = async () => {
+    if (!openAlert) return;
+    setActing(true);
+    setActionNote("");
+    try {
+      await alertsApi.acknowledgeAlert(openAlert.alert_id);
+      setOpenAlert(null);
+      setActionNote(`Alert ${openAlert.alert_id} acknowledged and audit-logged.`);
+    } catch {
+      setActionNote("Acknowledge failed. Check the API connection and retry.");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleNotify = async () => {
+    const target = openAlert ?? (await alertsApi.getAlerts().catch(() => [] as Alert[]))
+      .find((a) => a.case_id === caseData.case_id);
+    if (!target) {
+      setActionNote("No alert on record for this case yet — scoring has not crossed the threshold.");
+      return;
+    }
+    setActing(true);
+    setActionNote("");
+    try {
+      const res = await alertsApi.notifyAlert(target.alert_id);
+      const summary = res.delivery.map((d) => `${d.channel}: ${d.status}`).join(" · ");
+      setActionNote(`Re-dispatched alert ${target.alert_id} — ${summary}.`);
+    } catch {
+      setActionNote("Re-dispatch failed. Check the API connection and retry.");
+    } finally {
+      setActing(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-20">
@@ -201,6 +281,26 @@ export function CaseDetail() {
       {/* Ranked candidates + timeline */}
       <section className="grid gap-8 xl:grid-cols-12">
         <Reveal className="flex flex-col gap-8 xl:col-span-7">
+          <div className="flex items-center justify-between gap-4">
+            <span className="label-caps text-faint">
+              Scoring horizon{scoring ? " · scoring…" : ""}
+            </span>
+            <select
+              value={horizon}
+              onChange={(e) => setHorizon(Number(e.target.value))}
+              disabled={!writable}
+              aria-label="Scoring horizon"
+              title={writable ? "Re-score at this horizon" : "Requires LEA Officer role or above"}
+              className="field field-mono w-auto"
+            >
+              {HORIZON_OPTIONS.map((h) => (
+                <option key={h.minutes} value={h.minutes}>
+                  {h.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <TopKTable
             predictions={rows}
             isLoading={false}
@@ -229,9 +329,113 @@ export function CaseDetail() {
         </Reveal>
       </section>
 
+      {/* Predicted locations + recommended next actions */}
       <section className="flex flex-col gap-8">
         <SectionHeader
           index="04"
+          label="Action layer"
+          title="Where, when, what next."
+          description="Ranked terminals pinned to the map with their expected cash-out windows, and the next actions the duty officer can take from this file."
+        />
+        <div className="grid gap-8 xl:grid-cols-12">
+          <Reveal className="xl:col-span-7">
+            <Panel className="h-full">
+              <PanelHeader
+                index="04.1"
+                title="Predicted locations"
+                meta={
+                  <span className="label-caps tnum text-faint">
+                    {rows.length} terminals · {HORIZON_OPTIONS.find((h) => h.minutes === horizon)?.label}
+                  </span>
+                }
+              />
+              <div className="h-[clamp(20rem,44vh,30rem)]">
+                <RiskMap candidateAtms={atmPoints} />
+              </div>
+            </Panel>
+          </Reveal>
+
+          <Reveal delay={100} className="xl:col-span-5">
+            <Panel className="h-full">
+              <PanelHeader
+                index="04.2"
+                title="Recommended actions"
+                meta={<span className="label-caps tnum text-faint">Derived from this file</span>}
+              />
+              <ol className="flex flex-col gap-px bg-hairline">
+                {best && (
+                  <li className="flex flex-col gap-1.5 bg-surface px-5 py-4">
+                    <span className="label-caps text-accent">
+                      {best.risk_level === "CRITICAL" || best.risk_level === "HIGH"
+                        ? "Verify on priority"
+                        : "Keep on watchlist"}
+                    </span>
+                    <span className="text-sm text-ink">
+                      {best.atm_id} — {expectedLabel(best)}
+                    </span>
+                    {best.basis && (
+                      <span className="text-xs leading-relaxed text-faint">{best.basis}</span>
+                    )}
+                  </li>
+                )}
+                {heatWatch.length > 0 && (
+                  <li className="flex flex-col gap-1.5 bg-surface px-5 py-4">
+                    <span className="label-caps text-elevated-risk">Monitor burst terminals</span>
+                    <span className="text-sm text-ink">
+                      {heatWatch.length} bursting ATM{heatWatch.length === 1 ? "" : "s"}:{" "}
+                      {heatWatch.slice(0, 3).map((w) => w.atm_id).join(", ")}
+                      {heatWatch.length > 3 ? ` +${heatWatch.length - 3} more` : ""}
+                    </span>
+                    <span className="text-xs leading-relaxed text-faint">
+                      Observed withdrawal bursts, independent of case rank.
+                    </span>
+                  </li>
+                )}
+                {!best && heatWatch.length === 0 && (
+                  <li className="bg-surface px-5 py-4 text-xs text-faint">
+                    Score this case to generate terminal hypotheses and actions.
+                  </li>
+                )}
+              </ol>
+              <div className="flex flex-wrap items-center gap-3 border-t border-hairline px-5 py-4">
+                <Button
+                  size="sm"
+                  onClick={handleAcknowledge}
+                  disabled={!writable || acting || !openAlert}
+                  title={
+                    !writable
+                      ? "Requires LEA Officer role or above"
+                      : openAlert
+                        ? `Acknowledge alert ${openAlert.alert_id}`
+                        : "No open alert for this case"
+                  }
+                >
+                  <Check className="size-3" />
+                  Acknowledge alert
+                </Button>
+                <Button size="sm" onClick={handleNotify} disabled={!writable || acting}>
+                  <Send className="size-3" />
+                  Re-dispatch SMS / Email
+                </Button>
+              </div>
+              {actionNote && (
+                <p role="status" className="border-t border-hairline px-5 py-3 text-xs text-muted">
+                  {actionNote}
+                </p>
+              )}
+              {!writable && (
+                <p className="border-t border-hairline px-5 py-3 text-[0.6875rem] text-faint">
+                  Actions require the LEA Officer role or above.
+                </p>
+              )}
+            </Panel>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-8">
+        <SectionHeader
+          index="05"
           label="Graph analysis"
           title="Follow the hops."
           description="Directed flow from the originating account through each mule hop to the terminal withdrawal. Node colour encodes role, edge weight encodes value moved."

@@ -1,5 +1,6 @@
 import { api } from './client';
 import type { RiskLevel } from '../components/ui/RiskBadge';
+import type * as GeoJSON from 'geojson';
 
 /** Single ranked cash-out hypothesis — mirrors POST /cases/{id}/predictions. */
 export interface ModelPrediction {
@@ -49,6 +50,13 @@ export interface PredictionCandidate {
   confidence?: string;
   best_bet?: boolean;
   basis?: string;
+  expected_between?: [string, string] | null;
+  expected_min?: number | null;
+  predicted_window?: string;
+  lat?: number;
+  lon?: number;
+  /** Observed burst-heat level at this terminal (from heat_watch). */
+  heat_level?: string;
 }
 
 export function toTopKRows(predictions: ModelPrediction[]): PredictionCandidate[] {
@@ -59,8 +67,53 @@ export function toTopKRows(predictions: ModelPrediction[]): PredictionCandidate[
     risk_level: p.risk_level,
     best_bet: p.best_bet,
     basis: p.basis,
+    expected_between: p.expected_between,
+    expected_min: p.expected_min,
+    predicted_window: p.predicted_window,
+    lat: p.lat,
+    lon: p.lon,
   }));
 }
+
+/** "When can it be debited" label per candidate: clock window → ETA → window. */
+export function expectedLabel(p: {
+  expected_between?: [string, string] | null;
+  expected_min?: number | null;
+  predicted_window?: string;
+}): string {
+  if (p.expected_between) return `~${p.expected_between[0]}–${p.expected_between[1]}`;
+  if (p.expected_min != null) return `ETA ~${p.expected_min} min`;
+  return p.predicted_window ?? "—";
+}
+
+/** Candidate ATMs → GeoJSON points for the RiskMap marker layer. */
+export function toAtmPoints(rows: PredictionCandidate[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: rows
+      .filter((r) => r.lat != null && r.lon != null)
+      .map((r) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [r.lon as number, r.lat as number] },
+        properties: {
+          atm_id: r.atm_id,
+          risk_level: r.risk_level,
+          risk_score: r.risk_score,
+          state: r.state,
+          expected: expectedLabel(r),
+          best_bet: r.best_bet === true,
+          heat_level: r.heat_level ?? "LOW",
+        },
+      })),
+  };
+}
+
+export const HORIZON_OPTIONS = [
+  { minutes: 30, label: "Next 30 min" },
+  { minutes: 60, label: "30–60 min" },
+  { minutes: 240, label: "1–4 hrs" },
+  { minutes: 720, label: "4–12 hrs" },
+];
 
 export interface CaseSummary {
   case_id: number;

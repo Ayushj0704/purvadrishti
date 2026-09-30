@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type * as GeoJSON from "geojson";
 import { FilterBar } from "../components/FilterBar";
 import type { FilterState } from "../components/FilterBar";
@@ -11,7 +11,7 @@ import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { StatusPill } from "../components/ui/StatusDot";
-import { heatmapApi, alertsApi, casesApi, toTopKRows } from "../api";
+import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, HORIZON_OPTIONS } from "../api";
 import { canWrite, useRole } from "../lib/useRole";
 import type { HeatmapParams } from "../api/heatmap";
 import type { PredictionCandidate } from "../api/cases";
@@ -54,6 +54,7 @@ export function Dashboard() {
   const [heatmapData, setHeatmapData] = useState<GeoJSON.FeatureCollection | undefined>();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [predictions, setPredictions] = useState<PredictionCandidate[]>([]);
+  const [horizon, setHorizon] = useState(60);
   const [rankingNote, setRankingNote] = useState("");
   const [topCaseId, setTopCaseId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -100,9 +101,14 @@ export function Dashboard() {
           const samples = await casesApi.sampleCases(1);
           if (samples.length > 0 && !cancelled) {
             const sample = samples[0];
-            const result = await casesApi.predict(sample.case_id, { horizon_minutes: 60 });
+            const result = await casesApi.predict(sample.case_id, { horizon_minutes: horizon });
           if (!cancelled) {
-            setPredictions(toTopKRows(result.predictions));
+            const heatByAtm = new Map(
+              (result.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
+            );
+            const rows = toTopKRows(result.predictions);
+            for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
+            setPredictions(rows);
             setRankingNote(result.ranking_note ?? "");
             setTopCaseId(String(sample.case_id));
           }
@@ -132,7 +138,9 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [filters, reloadKey, writable]);
+  }, [filters, reloadKey, writable, horizon]);
+
+  const candidateAtms = useMemo(() => toAtmPoints(predictions), [predictions]);
 
   const metrics: Metric[] = [
     {
@@ -252,13 +260,29 @@ export function Dashboard() {
                 meta={<span className="label-caps tnum text-faint">H3 · res 8</span>}
               />
               <div className="h-[clamp(24rem,52vh,40rem)]">
-                <RiskMap heatmapData={heatmapData} />
+                <RiskMap heatmapData={heatmapData} candidateAtms={candidateAtms} />
               </div>
             </Panel>
           </Reveal>
 
           <div className="flex flex-col gap-8 xl:col-span-4">
             <Reveal delay={80}>
+              <div className="mb-3 flex items-center justify-between gap-4 px-1">
+                <span className="label-caps text-faint">Scoring horizon</span>
+                <select
+                  value={horizon}
+                  onChange={(e) => setHorizon(Number(e.target.value))}
+                  disabled={!writable}
+                  aria-label="Scoring horizon"
+                  className="field field-mono w-auto py-2 text-xs"
+                >
+                  {HORIZON_OPTIONS.map((h) => (
+                    <option key={h.minutes} value={h.minutes}>
+                      {h.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <TopKTable predictions={predictions} isLoading={isLoading} index="03" caseId={topCaseId} rankingNote={rankingNote} />
               {!writable && !isLoading && (
                 <p className="mt-3 px-1 text-[0.6875rem] text-faint">

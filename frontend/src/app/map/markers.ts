@@ -40,3 +40,48 @@ export const candidateAtmLayer: Omit<CircleLayerSpecification, "source"> = {
   },
 };
 
+// Bursting terminals (observed withdrawal heat): solid orange discs that read
+// apart from the risk-tinted candidate halos.
+export const burstAtmLayer: Omit<CircleLayerSpecification, "source"> = {
+  id: "burst-atm-layer",
+  type: "circle",
+  filter: ["==", ["get", "heat_level"], "HIGH"],
+  paint: {
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 5, 10, 10],
+    "circle-color": "#f59e0b",
+    "circle-opacity": 0.85,
+    "circle-stroke-color": "#0c0c0f",
+    "circle-stroke-width": 1.5,
+    "circle-stroke-opacity": 1,
+  },
+};
+
+// Best-bet ring: accent outline marking the lead hypothesis.
+export const bestBetRingLayer: Omit<CircleLayerSpecification, "source"> = {
+  id: "best-bet-ring-layer",
+  type: "circle",
+  filter: ["==", ["get", "best_bet"], true],
+  paint: {
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 8, 10, 13],
+    "circle-color": "rgba(0,0,0,0)",
+    "circle-opacity": 0,
+    "circle-stroke-color": "#6f78ff",
+    "circle-stroke-width": 2.5,
+    "circle-stroke-opacity": 1,
+  },
+};
+
+// Best-bet halo: radius + opacity driven per-frame by RiskMap's animator to
+// read as a radar pulse on the lead hypothesis.
+export const bestBetHaloLayer: Omit<CircleLayerSpecification, "source"> = {
+  id: "best-bet-halo-layer",
+  type: "circle",
+  filter: ["==", ["get", "best_bet"], true],
+  paint: {
+    "circle-radius": 10,
+    "circle-color": "#6f78ff",
+    "circle-opacity": 0.35,
+    "circle-stroke-width": 0,
+  },
+};
+

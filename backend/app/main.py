@@ -12,7 +12,7 @@ from app.core.security import DEMO_USERS, create_token, decode_token
 from app.db.session import Base, engine, get_db
 from app.db.models import Case, ATM, Prediction, Alert
 from app.services.candidate_service import generate_candidates
-from app.ml.predict import score_multi, model_available, model_label, get_thresholds, _load as _load_model
+from app.ml.predict import score_multi, model_available, model_label, get_thresholds, _load as _load_model, HORIZONS
 from app.geo.spatial import risk_level
 from app.api.deps import require_roles
 
@@ -320,11 +320,14 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
             m["reasons"] = [f"Burst: {h['n2h']} withdrawals in last 2 hours "
                             f"at this ATM (observed)"] + m["reasons"][:3]
     label = model_label() if model_available() else "heuristic-fallback"
-    HIGH_T, CRIT_T = get_thresholds(60) if model_available() else (0.70, 0.85)
+    # Honor the requested horizon: ranking score + bands come from that
+    # horizon's model output and validation-tuned thresholds (was: 60 hard).
+    H = min(HORIZONS, key=lambda h: abs(h - (body.horizon_minutes or 60)))
+    HIGH_T, CRIT_T = get_thresholds(H) if model_available() else (0.70, 0.85)
     scored = []
     new_preds = []
     for a, m in zip(cands, multi):
-        s, reasons = m["scores"][60], m["reasons"]
+        s, reasons = m["scores"].get(H, m["scores"][60]), m["reasons"]
         cell = getattr(a, "h3_cell", "") or ""
         if not cell:
             try:  # H3 cell, best-effort
@@ -334,16 +337,44 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
                 cell = ""
         p = Prediction(case_id=c.id, atm_id=a.id, h3_cell=cell,
                        prediction_score=s, risk_level=risk_level(s, HIGH_T, CRIT_T),
-                       horizon_minutes=body.horizon_minutes,
+                       horizon_minutes=H,
                        model_version=label)
         new_preds.append((s, a, p, reasons, m))
     db.add_all([p for (_, _, p, _, _) in new_preds])
     db.flush()  # single round-trip (was: flush per row)
     scored = [(s, a, p, r) for (s, a, p, r, _) in new_preds]
-    db.commit()
+    # NOTE: single commit happens after triage-band elevation below, so the
+    # stored rows carry the same bands the response reports.
     scored.sort(key=lambda x: -x[0])
-    top = scored[:settings.top_k]
     by_key = {(s, a.id): m for (s, a, p, r, m) in new_preds}
+    # Case-relative triage bands (officer view): raw scores are uncalibrated
+    # proba, so absolute validated bands alone paint every quiet case green —
+    # yet held-out top-5 recall is 50.8%, i.e. the top-5 ARE worth watching.
+    # Rule (documented, reason-attached, raw score untouched and displayed):
+    #   rank #1 at/above the actionability floor → at least HIGH (lead hypothesis)
+    #   ranks #2–5 at/above the floor → at least MEDIUM (watchlist)
+    #   observed burst heat at the terminal → at least MEDIUM
+    # Absolute CRITICAL/HIGH always win. Alerts still fire on absolute/burst
+    # only — triage bands never page the duty officer by themselves.
+    _ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+    _FLOOR = 0.10
+    for i, (s, a, p, r) in enumerate(scored):
+        want = "HIGH" if i == 0 else ("MEDIUM" if i < 5 else None)
+        if want and s >= _FLOOR and _ORDER[p.risk_level] < _ORDER[want]:
+            p.risk_level = want
+            m = by_key[(s, a.id)]
+            note = (f"Lead hypothesis for this case (rank #1 of {len(scored)})"
+                    if i == 0 else
+                    f"Case watchlist (rank #{i + 1} of {len(scored)})")
+            if i == 0 and "burst" not in m["basis"]:
+                m["basis"] = note
+            r.append(note)
+        if (heat.get(a.id, {}).get("level") == "HIGH"
+                and _ORDER[p.risk_level] < _ORDER["MEDIUM"]):
+            p.risk_level = "MEDIUM"
+            r.append("Observed withdrawal burst at this terminal (independent signal)")
+    db.commit()
+    top = scored[:settings.top_k]
     margin = round(top[0][0] - top[1][0], 3) if len(top) > 1 else 0.0
     from datetime import timedelta as _td2
     _gen = time.time()
@@ -361,7 +392,7 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
         exp_min = m.get("expected_min")
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
                       "state": a.state,
-                      "score": s, "risk_level": risk_level(s, HIGH_T, CRIT_T),
+                      "score": s, "risk_level": p.risk_level,
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
                       "expected_between": expect,
@@ -415,7 +446,7 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
                            "data": {"case_id": c.id,
                                     "top_score": top[0][0] if top else 0}})
     return {"case_id": c.external_case_id, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "horizon_minutes": body.horizon_minutes, "model_version": label,
+            "horizon_minutes": H, "model_version": label,
             "basis_note": basis_note,
             "ranking_note": (f"Best bet {top[0][1].atm_code} leads runner-up by {margin} "
                              f"among {len(scored)} candidates." if top else "No candidates."),

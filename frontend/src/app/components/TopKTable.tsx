@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { PredictionCandidate } from "../api/cases";
+import { expectedLabel } from "../api/cases";
 import { RiskBadge, riskLevelFromScore } from "./ui/RiskBadge";
 import { EmptyState, Skeleton } from "./ui/EmptyState";
 import { Panel, PanelHeader } from "./ui/Panel";
@@ -49,6 +50,7 @@ export function TopKTable({
               <th>ATM</th>
               <th className="hidden sm:table-cell">State</th>
               <th>Risk</th>
+              <th className="hidden md:table-cell">Expected</th>
               <th className="text-right">Score</th>
             </tr>
           </thead>
@@ -90,6 +92,9 @@ export function TopKTable({
                   </td>
                   <td>
                     <RiskBadge level={level} />
+                  </td>
+                  <td className="hidden md:table-cell">
+                    <span className="telemetry whitespace-nowrap text-muted">{expectedLabel(p)}</span>
                   </td>
                   <td className="text-right">
                     <span className="value tnum text-ink">{(p.risk_score * 100).toFixed(1)}%</span>

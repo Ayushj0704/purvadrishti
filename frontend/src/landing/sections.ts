@@ -372,8 +372,7 @@ function pipeline(): HTMLElement {
       h(
         "h2",
         { class: "display section-title" },
-        "Four steps, ",
-        scribble("one ranked window."),
+        "Four steps, one ranked window.",
       ),
     ),
     h(

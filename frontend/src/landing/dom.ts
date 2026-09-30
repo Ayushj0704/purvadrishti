@@ -37,19 +37,14 @@ export function svg(tag: string, attrs: Attrs = {}, ...children: Child[]): SVGEl
   return el;
 }
 
-export function wordmark(size: number): SVGElement {
-  return svg(
-    "svg",
-    { viewBox: "0 0 32 32", width: size, height: size, "aria-hidden": "true" },
-    svg("circle", { cx: 16, cy: 16, r: 7, fill: "none", stroke: "currentColor", "stroke-width": 1.5 }),
-    svg("circle", { cx: 16, cy: 16, r: 2, fill: "currentColor" }),
-    svg("path", {
-      d: "M16 1v6M16 25v6M1 16h6M25 16h6",
-      stroke: "currentColor",
-      "stroke-width": 1.5,
-      "stroke-linecap": "square",
-    }),
-  );
+export function wordmark(size: number): HTMLElement {
+  return h("img", {
+    src: "/logo.png",
+    alt: "PurvaDrishti",
+    width: size,
+    height: size,
+    "aria-hidden": "true",
+  });
 }
 
 /** Wraps every word in its own span so the intro can stagger them in. */

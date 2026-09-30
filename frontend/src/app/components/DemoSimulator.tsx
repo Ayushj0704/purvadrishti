@@ -61,7 +61,16 @@ export function DemoSimulator() {
       if (step.id === "alert") navigate("/alerts");
       if (step.id === "action") {
         // Open the same live case the facts describe — never a fixed id.
-        navigate(liveCaseId ? `/cases/${liveCaseId}` : "/");
+        // (If the background fetch is still slow, grab one on the spot.)
+        const go = (id: number | null) => navigate(id ? `/cases/${id}` : "/");
+        if (liveCaseId) {
+          go(liveCaseId);
+        } else {
+          casesApi
+            .sampleCases(1)
+            .then((samples) => go(samples.length > 0 ? samples[0].case_id : null))
+            .catch(() => go(null));
+        }
         stopTimer.current = setTimeout(reset, 2000);
       }
     }, step.delay);
@@ -73,47 +82,50 @@ export function DemoSimulator() {
     if (stopTimer.current) clearTimeout(stopTimer.current);
   }, []);
 
-  const start = async () => {
+  const start = () => {
     navigate("/");
     setStepIndex(-1);
     setFacts(null);
     setLiveCaseId(null);
-    // Pull one live case up front so every step narrates real data —
-    // amount, corridor, best terminal, window — instead of labels alone.
-    try {
-      const samples = await casesApi.sampleCases(1);
-      if (samples.length > 0) {
-        const s = samples[0];
-        setLiveCaseId(s.case_id);
-        const [c, pred] = await Promise.all([
-          casesApi.getCase(s.case_id).catch(() => null),
-          casesApi.predict(s.case_id, { horizon_minutes: 60 }).catch(() => null),
-        ]);
-        const top = pred?.predictions[0];
-        const amount = formatInr(s.amount ?? c?.fraud_amount ?? c?.amount ?? 0);
-        const vector = s.subcategory ?? c?.crime_subcategory ?? c?.fraud_type ?? "fraud";
-        const corridor = [s.complainant_state, s.incident_state]
-          .filter(Boolean)
-          .filter((v, i, a) => a.indexOf(v) === i)
-          .join(" → ");
-        setFacts({
-          caseRef: s.external_case_id,
-          caseId: s.case_id,
-          txn: `${amount} · ${vector}${corridor ? ` · ${corridor}` : ""}`,
-          complaint: `${s.external_case_id} filed${s.incident_state ? ` · ${s.incident_state}` : ""}`,
-          candidates: pred ? `${pred.predictions.length} terminals in radius` : "radius swept",
-          scored: top
-            ? `${top.atm_id} · ${(top.score * 100).toFixed(1)}% · ${expectedLabel(top)}`
-            : "model scoring…",
-          alert: top ? `${top.risk_level} terminal · ${top.predicted_window}` : "below threshold",
-          action: `opening ${s.external_case_id}`,
-        });
+    // Sequence starts instantly; the live file loads behind it and each
+    // step's facts pop in when ready — never block the show on scoring.
+    setIsRunning(true);
+    void (async () => {
+      // Pull one live case up front so every step narrates real data —
+      // amount, corridor, best terminal, window — instead of labels alone.
+      try {
+        const samples = await casesApi.sampleCases(1);
+        if (samples.length > 0) {
+          const s = samples[0];
+          setLiveCaseId(s.case_id);
+          const [c, pred] = await Promise.all([
+            casesApi.getCase(s.case_id).catch(() => null),
+            casesApi.predict(s.case_id, { horizon_minutes: 60 }).catch(() => null),
+          ]);
+          const top = pred?.predictions[0];
+          const amount = formatInr(s.amount ?? c?.fraud_amount ?? c?.amount ?? 0);
+          const vector = s.subcategory ?? c?.crime_subcategory ?? c?.fraud_type ?? "fraud";
+          const corridor = [s.complainant_state, s.incident_state]
+            .filter(Boolean)
+            .filter((v, i, a) => a.indexOf(v) === i)
+            .join(" → ");
+          setFacts({
+            caseRef: s.external_case_id,
+            caseId: s.case_id,
+            txn: `${amount} · ${vector}${corridor ? ` · ${corridor}` : ""}`,
+            complaint: `${s.external_case_id} filed${s.incident_state ? ` · ${s.incident_state}` : ""}`,
+            candidates: pred ? `${pred.predictions.length} terminals in radius` : "radius swept",
+            scored: top
+              ? `${top.atm_id} · ${(top.score * 100).toFixed(1)}% · ${expectedLabel(top)}`
+              : "model scoring…",
+            alert: top ? `${top.risk_level} terminal · ${top.predicted_window}` : "below threshold",
+            action: `opening ${s.external_case_id}`,
+          });
+        }
+      } catch {
+        /* facts stay empty — step labels still run */
       }
-    } catch {
-      /* facts stay empty — step labels still run */
-    } finally {
-      setIsRunning(true);
-    }
+    })();
   };
 
   const argumentFor = (id: string): string => {

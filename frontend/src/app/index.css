@@ -7,3 +7,26 @@
 @import "../styles/tokens.css";
 
 @source "./**/*.{ts,tsx}";
+
+/* MapLibre popup frame restyled to the console palette (the library ships a
+   light frame that would glow against the dark map). */
+.risk-popup .maplibregl-popup-content {
+  background: #15151a;
+  border: 1px solid #2e2e3a;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+.risk-popup .maplibregl-popup-tip {
+  border-top-color: #15151a !important;
+  border-bottom-color: #15151a !important;
+}
+.risk-popup .maplibregl-popup-close-button {
+  color: #8e8e99;
+  font-size: 1rem;
+  padding: 2px 8px;
+}
+.risk-popup .maplibregl-popup-close-button:hover {
+  color: #f4f4f5;
+  background: transparent;
+}

@@ -85,3 +85,33 @@ export const bestBetHaloLayer: Omit<CircleLayerSpecification, "source"> = {
   },
 };
 
+// Victim origin: solid white disc — distinct from every risk colour.
+export const victimLayer: Omit<CircleLayerSpecification, "source"> = {
+  id: "entities-victim-layer",
+  type: "circle",
+  filter: ["==", ["get", "kind"], "victim"],
+  paint: {
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 7, 10, 11],
+    "circle-color": "#f4f4f5",
+    "circle-opacity": 0.95,
+    "circle-stroke-color": "#ff4c41",
+    "circle-stroke-width": 2,
+    "circle-stroke-opacity": 1,
+  },
+};
+
+// Mule hops: small neutral dots.
+export const muleLayer: Omit<CircleLayerSpecification, "source"> = {
+  id: "entities-mule-layer",
+  type: "circle",
+  filter: ["==", ["get", "kind"], "mule"],
+  paint: {
+    "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 10, 7],
+    "circle-color": "#a1a1aa",
+    "circle-opacity": 0.8,
+    "circle-stroke-color": "#0c0c0f",
+    "circle-stroke-width": 1.5,
+    "circle-stroke-opacity": 1,
+  },
+};
+

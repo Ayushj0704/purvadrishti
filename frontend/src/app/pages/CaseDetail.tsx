@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Printer, Send } from "lucide-react";
 
-import { casesApi, toTopKRows, toAtmPoints, expectedLabel, HORIZON_OPTIONS } from "../api/cases";
+import { casesApi, toTopKRows, toAtmPoints, trailToEntities, expectedLabel, HORIZON_OPTIONS } from "../api/cases";
 import type { CaseSummary, PredictResponse, TrailResponse, PredictionCandidate } from "../api/cases";
 import { alertsApi } from "../api/alerts";
 import type { Alert } from "../api/alerts";
@@ -72,6 +72,8 @@ export function CaseDetail() {
   const [modelVersion, setModelVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [scoring, setScoring] = useState(false);
+  const [detailsDone, setDetailsDone] = useState(false);
+  const [minRisk, setMinRisk] = useState("ALL");
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
@@ -126,6 +128,7 @@ export function CaseDetail() {
     if (!id || !caseData) return;
     let cancelled = false;
     setScoring(true);
+    setDetailsDone(false);
 
     const score = async () => {
       const [pred, tr, al] = await Promise.all([
@@ -141,6 +144,7 @@ export function CaseDetail() {
       if (tr) setTrail(tr);
       setOpenAlert(al.find((a) => a.case_id === Number(id) && a.status === "NEW") ?? null);
       setScoring(false);
+      setDetailsDone(true);
     };
 
     score();
@@ -159,17 +163,40 @@ export function CaseDetail() {
     const list = rows.map((r) => ({ ...r, heat_level: heatByAtm.get(r.atm_id) ?? "LOW" }));
     return toAtmPoints(list);
   }, [rows, predictions]);
+  const entities = useMemo(() => trailToEntities(trail), [trail]);
+  const RISK_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+  const visibleAtms = useMemo(() => {
+    if (minRisk === "ALL") return atmPoints;
+    const floor = RISK_RANK[minRisk] ?? 0;
+    return {
+      ...atmPoints,
+      features: atmPoints.features.filter(
+        (f) => (RISK_RANK[String(f.properties?.risk_level)] ?? 0) >= floor,
+      ),
+    };
+  }, [atmPoints, minRisk]);
 
-  if (isLoading) {
+  // Whole-data gate: nothing renders half-empty. The header, tables, map and
+  // graph appear together once case + scoring + trail + timeline all settle.
+  const ready = !isLoading && detailsDone;
+
+  if (notFound || (!isLoading && !caseData)) {
+    return <p className="text-sm text-critical">Case {id} not found.</p>;
+  }
+
+  if (!ready) {
     return (
       <div className="flex flex-col gap-10">
         <div className="h-10 w-64 animate-pulse bg-white/[0.04]" />
         <Skeleton rows={6} />
+        <p className="telemetry text-faint">
+          {scoring ? "Scoring candidates…" : "Loading case file…"}
+        </p>
       </div>
     );
   }
 
-  if (notFound || !caseData) {
+  if (!caseData) {
     return <p className="text-sm text-critical">Case {id} not found.</p>;
   }
 
@@ -350,14 +377,30 @@ export function CaseDetail() {
               <PanelHeader
                 index="04.1"
                 title="Predicted locations"
-                meta={
-                  <span className="label-caps tnum text-faint">
-                    {rows.length} terminals · {HORIZON_OPTIONS.find((h) => h.minutes === horizon)?.label}
-                  </span>
-                }
-              />
+              meta={
+                <span className="label-caps tnum text-faint">
+                  {visibleAtms.features.length} terminals · {HORIZON_OPTIONS.find((h) => h.minutes === horizon)?.label}
+                </span>
+              }
+            />
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-hairline px-5 py-3">
+              <span className="label-caps text-faint">Show pins</span>
+              <select
+                value={minRisk}
+                onChange={(e) => setMinRisk(e.target.value)}
+                aria-label="Minimum pin risk"
+                className="field field-mono w-auto py-1.5 text-xs"
+              >
+                {["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((r) => (
+                  <option key={r} value={r}>
+                    {r === "ALL" ? "All pins" : `${r}+`}
+                  </option>
+                ))}
+              </select>
+              <span className="telemetry text-faint">Tap a pin for coordinates, region & distance</span>
+            </div>
               <div className="h-[clamp(20rem,44vh,30rem)]">
-                <RiskMap candidateAtms={atmPoints} />
+                <RiskMap candidateAtms={visibleAtms} entities={entities} />
               </div>
             </Panel>
           </Reveal>

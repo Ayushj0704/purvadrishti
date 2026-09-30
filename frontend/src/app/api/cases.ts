@@ -8,6 +8,8 @@ export interface ModelPrediction {
   lat: number;
   lon: number;
   state: string;
+  district: string;
+  city: string;
   score: number;
   risk_level: RiskLevel;
   scores: Record<string, number>;
@@ -57,6 +59,8 @@ export interface PredictionCandidate {
   lon?: number;
   /** Observed burst-heat level at this terminal (from heat_watch). */
   heat_level?: string;
+  district?: string;
+  city?: string;
 }
 
 export function toTopKRows(predictions: ModelPrediction[]): PredictionCandidate[] {
@@ -73,6 +77,8 @@ export function toTopKRows(predictions: ModelPrediction[]): PredictionCandidate[
     predicted_window: p.predicted_window,
     lat: p.lat,
     lon: p.lon,
+    district: p.district,
+    city: p.city,
   }));
 }
 
@@ -105,6 +111,34 @@ export function toAtmPoints(rows: PredictionCandidate[]): GeoJSON.FeatureCollect
           expected: expectedLabel(r),
           best_bet: r.best_bet === true,
           heat_level: r.heat_level ?? "LOW",
+          district: r.district ?? "",
+          city: r.city ?? "",
+        },
+      })),
+  };
+}
+
+/** Trail victim/mule nodes with coordinates → GeoJSON points for the map.
+ *  ATMs travel via the candidate layer; this covers the human side. */
+export function trailToEntities(trail?: TrailResponse | null): GeoJSON.FeatureCollection {
+  const nodes = trail && Array.isArray(trail.nodes) ? trail.nodes : [];
+  return {
+    type: "FeatureCollection",
+    features: nodes
+      .filter(
+        (n) =>
+          n &&
+          (n.kind === "victim" || n.kind === "mule") &&
+          typeof n.lat === "number" &&
+          typeof n.lon === "number",
+      )
+      .map((n) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [n.lon as number, n.lat as number] },
+        properties: {
+          kind: n.kind,
+          label: (n.label as string) || n.id,
+          amount: typeof n.amount === "number" ? n.amount : null,
         },
       })),
   };

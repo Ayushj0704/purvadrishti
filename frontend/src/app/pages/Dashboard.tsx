@@ -10,8 +10,9 @@ import { FolderFloat } from "../components/ui/FolderFloat";
 import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
+import { Skeleton } from "../components/ui/EmptyState";
 import { StatusPill } from "../components/ui/StatusDot";
-import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, HORIZON_OPTIONS } from "../api";
+import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, trailToEntities, HORIZON_OPTIONS } from "../api";
 import { canWrite, useRole } from "../lib/useRole";
 import type { HeatmapParams } from "../api/heatmap";
 import type { PredictionCandidate } from "../api/cases";
@@ -52,6 +53,7 @@ export function Dashboard() {
   const writable = canWrite(role);
   const [filters, setFilters] = useState<FilterState | null>(null);
   const [heatmapData, setHeatmapData] = useState<GeoJSON.FeatureCollection | undefined>();
+  const [entities, setEntities] = useState<GeoJSON.FeatureCollection | undefined>();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [predictions, setPredictions] = useState<PredictionCandidate[]>([]);
   const [horizon, setHorizon] = useState(60);
@@ -60,6 +62,7 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const [minRisk, setMinRisk] = useState("ALL");
   const [syncedAt, setSyncedAt] = useState(() => new Date());
 
   const handleFilterChange = useCallback((next: FilterState) => {
@@ -101,30 +104,36 @@ export function Dashboard() {
           const samples = await casesApi.sampleCases(1);
           if (samples.length > 0 && !cancelled) {
             const sample = samples[0];
-            const result = await casesApi.predict(sample.case_id, { horizon_minutes: horizon });
-          if (!cancelled) {
-            const heatByAtm = new Map(
-              (result.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
-            );
-            const rows = toTopKRows(result.predictions);
-            for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
-            setPredictions(rows);
-            setRankingNote(result.ranking_note ?? "");
-            setTopCaseId(String(sample.case_id));
+            const [result, tr] = await Promise.all([
+              casesApi.predict(sample.case_id, { horizon_minutes: horizon }),
+              casesApi.getTrail(sample.case_id).catch(() => null),
+            ]);
+            if (!cancelled) {
+              const heatByAtm = new Map(
+                (result.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
+              );
+              const rows = toTopKRows(result.predictions);
+              for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
+              setPredictions(rows);
+              setRankingNote(result.ranking_note ?? "");
+              setTopCaseId(String(sample.case_id));
+              setEntities(trailToEntities(tr));
+            }
+          } else if (!cancelled) {
+            setPredictions([]);
+            setRankingNote("");
+            setTopCaseId(undefined);
+            setEntities(undefined);
           }
-        } else if (!cancelled) {
-          setPredictions([]);
-          setRankingNote("");
-          setTopCaseId(undefined);
+        } catch {
+          failed.push("predictions");
+          if (!cancelled) {
+            setPredictions([]);
+            setRankingNote("");
+            setTopCaseId(undefined);
+            setEntities(undefined);
+          }
         }
-      } catch {
-        failed.push("predictions");
-        if (!cancelled) {
-          setPredictions([]);
-          setRankingNote("");
-          setTopCaseId(undefined);
-        }
-      }
       }
 
       if (!cancelled) {
@@ -141,6 +150,18 @@ export function Dashboard() {
   }, [filters, reloadKey, writable, horizon]);
 
   const candidateAtms = useMemo(() => toAtmPoints(predictions), [predictions]);
+
+  const RISK_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+  const visibleAtms = useMemo(() => {
+    if (minRisk === "ALL" || !candidateAtms) return candidateAtms;
+    const floor = RISK_RANK[minRisk] ?? 0;
+    return {
+      ...candidateAtms,
+      features: candidateAtms.features.filter(
+        (f) => (RISK_RANK[String(f.properties?.risk_level)] ?? 0) >= floor,
+      ),
+    };
+  }, [candidateAtms, minRisk]);
 
   const metrics: Metric[] = [
     {
@@ -259,30 +280,57 @@ export function Dashboard() {
                 title="National risk heatmap"
                 meta={<span className="label-caps tnum text-faint">H3 · res 8</span>}
               />
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-hairline px-5 py-3">
+                <label className="flex items-center gap-2">
+                  <span className="label-caps text-faint">Horizon</span>
+                  <select
+                    value={horizon}
+                    onChange={(e) => setHorizon(Number(e.target.value))}
+                    disabled={!writable || isLoading}
+                    aria-label="Scoring horizon"
+                    className="field field-mono w-auto py-1.5 text-xs"
+                  >
+                    {HORIZON_OPTIONS.map((h) => (
+                      <option key={h.minutes} value={h.minutes}>
+                        {h.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className="label-caps text-faint">Min risk</span>
+                  <select
+                    value={minRisk}
+                    onChange={(e) => setMinRisk(e.target.value)}
+                    aria-label="Minimum pin risk"
+                    className="field field-mono w-auto py-1.5 text-xs"
+                  >
+                    {["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((r) => (
+                      <option key={r} value={r}>
+                        {r === "ALL" ? "All pins" : r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <span className="telemetry text-faint">
+                  {visibleAtms?.features.length ?? 0} pins
+                </span>
+              </div>
               <div className="h-[clamp(24rem,52vh,40rem)]">
-                <RiskMap heatmapData={heatmapData} candidateAtms={candidateAtms} />
+                {isLoading ? (
+                  <div className="flex h-full flex-col justify-center gap-3 p-5">
+                    <Skeleton rows={5} />
+                    <p className="telemetry text-center text-faint">Loading live layers…</p>
+                  </div>
+                ) : (
+                  <RiskMap heatmapData={heatmapData} candidateAtms={visibleAtms} entities={entities} />
+                )}
               </div>
             </Panel>
           </Reveal>
 
           <div className="flex flex-col gap-8 xl:col-span-4">
             <Reveal delay={80}>
-              <div className="mb-3 flex items-center justify-between gap-4 px-1">
-                <span className="label-caps text-faint">Scoring horizon</span>
-                <select
-                  value={horizon}
-                  onChange={(e) => setHorizon(Number(e.target.value))}
-                  disabled={!writable}
-                  aria-label="Scoring horizon"
-                  className="field field-mono w-auto py-2 text-xs"
-                >
-                  {HORIZON_OPTIONS.map((h) => (
-                    <option key={h.minutes} value={h.minutes}>
-                      {h.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <TopKTable predictions={predictions} isLoading={isLoading} index="03" caseId={topCaseId} rankingNote={rankingNote} />
               {!writable && !isLoading && (
                 <p className="mt-3 px-1 text-[0.6875rem] text-faint">
@@ -300,7 +348,9 @@ export function Dashboard() {
                     <span className="label-caps tnum text-faint">{alerts.length} live</span>
                   }
                 />
-                {alerts.length > 0 ? (
+                {isLoading ? (
+                  <Skeleton rows={4} />
+                ) : alerts.length > 0 ? (
                   alerts.map((alert) => <AlertRow key={alert.alert_id} alert={alert} />)
                 ) : (
                   <p className="px-5 py-10 text-center text-xs text-faint">No active alerts.</p>

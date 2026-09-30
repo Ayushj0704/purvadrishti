@@ -392,6 +392,8 @@ async def predict(case_id: int, body: PredictIn, db: Session = Depends(get_db),
         exp_min = m.get("expected_min")
         preds.append({"atm_id": a.atm_code, "lat": a.lat, "lon": a.lon,
                       "state": a.state,
+                      "district": getattr(a, "district", ""),
+                      "city": getattr(a, "city", ""),
                       "score": s, "risk_level": p.risk_level,
                       "scores": m["scores"],
                       "predicted_window": m["predicted_window"],
@@ -741,11 +743,12 @@ def trail(case_id: int, db: Session = Depends(get_db),
     if not c: raise HTTPException(404, "case not found")
     G = nx.DiGraph()
     G.add_node("victim", kind="victim", label=f"Victim ({c.complainant_state})",
-               amount=c.fraud_amount)
+               amount=c.fraud_amount, lat=c.victim_lat, lon=c.victim_lon)
     txns = db.query(Transaction).filter(Transaction.case_id == case_id).all()
     for t in txns:
         G.add_node(t.destination_account_ref or "?", kind="mule",
-                   label=(t.destination_account_ref or "?")[-9:])
+                   label=(t.destination_account_ref or "?")[-9:],
+                   lat=t.lat, lon=t.lon)
         G.add_edge(t.source_account_ref or "victim",
                    t.destination_account_ref or "?",
                    amount=t.amount, type=t.transaction_type)
@@ -770,10 +773,12 @@ def trail(case_id: int, db: Session = Depends(get_db),
         order = list(G.nodes)
         depth = None
     # add_edge auto-creates endpoint nodes without attrs — backfill so every
-    # node carries kind/label for the graph adapter.
+    # node carries kind/label/coords for the graph + map adapters.
     for n in G.nodes:
         G.nodes[n].setdefault("kind", "mule")
         G.nodes[n].setdefault("label", str(n)[-9:])
+        G.nodes[n].setdefault("lat", None)
+        G.nodes[n].setdefault("lon", None)
     return {"case_id": case_id,
             "nodes": [{"id": n, **G.nodes[n]} for n in order],
             "edges": [{"from": u, "to": v, **G.edges[u, v]} for u, v in G.edges],

@@ -1,4 +1,4 @@
-import { h, svg, wordmark } from "./dom";
+﻿import { h, svg, wordmark } from "./dom";
 
 /**
  * Copy follows one rule set throughout: sentence case, two to four words per
@@ -69,14 +69,14 @@ const CAPABILITIES = [
 ];
 
 const METRICS = [
-  { value: 0.76, dp: 2, suffix: "", label: "ROC-AUC", note: "60-minute horizon" },
+  { value: 0.78, dp: 2, suffix: "", label: "ROC-AUC", note: "60-minute horizon" },
   { value: 50.8, dp: 1, suffix: "%", label: "Top-5 recall", note: "Held-out test split" },
-  { value: 38.6, dp: 1, suffix: " min", label: "Time MAE", note: "Minutes to cash-out" },
+  { value: 38, dp: 0, suffix: " min", label: "Time MAE", note: "Minutes to cash-out" },
   { value: 4, dp: 0, suffix: "", label: "Horizons", note: "30 / 60 / 240 / 720 min" },
 ];
 
 const RAILS = [
-  ["Top-5 recall 50.8%", "ROC-AUC 0.76", "Time MAE 38.6 min", "H3 resolution 8", "Radius 5 km"],
+  ["Top-5 recall 50.8%", "Overall recall 82.4%", "ROC-AUC 0.78", "Time MAE 38 min", "H3 resolution 8"],
   ["Model XGB v0.5.0", "Horizons 30–720 min", "Top-K = 5", "Cross-state trails on"],
   ["LEA · Bank · I4C", "Audit logged", "Authorised use only", "No live banking connections"],
 ];
@@ -233,25 +233,25 @@ const HERO_CARDS = [
     venue: "HDFC ATM, Nehru Place",
     note: "Two hops from the last confirmed withdrawal, both before noon.",
     score: "0.94",
-    window: "14:00 – 17:00",
+    window: "14:00 - 17:00",
   },
   {
     venue: "State Bank ATM, C-Scheme",
     note: "Withdrawal burst across four accounts in the same forty minutes.",
     score: "0.88",
-    window: "16:00 – 19:00",
+    window: "16:00 - 19:00",
   },
   {
     venue: "Axis ATM, Banaras Road",
     note: "Complaint filed in Delhi, cash expected well south of it.",
     score: "0.81",
-    window: "11:00 – 13:00",
+    window: "11:00 - 13:00",
   },
   {
     venue: "ICICI ATM, Sector 18",
     note: "Rank held steady overnight; no competing burst in range.",
     score: "0.76",
-    window: "19:00 – 22:00",
+    window: "19:00 - 22:00",
   },
 ] as const;
 
@@ -287,7 +287,7 @@ function hero(): HTMLElement {
           { class: "hero-stats" },
           ...[
             ["Top-5 recall", "50.8%"],
-            ["Time MAE", "38.6 min"],
+            ["Time MAE", "38 min"],
             ["Horizons", "4"],
           ].flatMap(([label, value]) => [
             h("div", {}, h("dt", { class: "stat-label" }, label), h("dd", { class: "stat-value tnum" }, value)),
@@ -328,7 +328,7 @@ function hero(): HTMLElement {
 function problem(): HTMLElement {
   return h(
     "section",
-      { class: "section split stack-panel", id: "problem" },
+      { class: "section split stack-panel accent-band", id: "problem" },
     h(
       "div",
       { class: "shell split-grid" },
@@ -372,7 +372,8 @@ function pipeline(): HTMLElement {
       h(
         "h2",
         { class: "display section-title" },
-        "Four steps, one ranked window.",
+        "Four steps, ",
+        scribble("one ranked window."),
       ),
     ),
     h(
@@ -399,7 +400,7 @@ function pipeline(): HTMLElement {
 function capabilities(): HTMLElement {
   return h(
     "section",
-      { class: "section stack-panel", id: "capabilities" },
+      { class: "section stack-panel accent-band", id: "capabilities" },
     h(
       "div",
       { class: "shell" },
@@ -527,7 +528,6 @@ function close(): HTMLElement {
     h(
       "div",
       { class: "close-band" },
-      h("p", { class: "kicker" }, "Ready"),
       h("h2", { class: "display close-title" }, "Ready when you are."),
       h(
         "p",
@@ -544,11 +544,20 @@ function close(): HTMLElement {
   );
 }
 
-/** Three zones for the footer clocks, mirroring PageFooter's ZONES. */
-const FOOTER_SNAPSHOT = [
-  { label: "TOP-5 RECALL", value: "50.8%", note: "Held-out test split" },
-  { label: "ROC-AUC · 60 MIN", value: "0.76", note: "Ranking quality" },
-  { label: "TIME MAE", value: "38.6 min", note: "Minutes to cash-out" },
+/** Handling rules, mirroring PageFooter's HANDLING list. */
+const FOOTER_HANDLING = [
+  "Authorised use only",
+  "Every action audit logged",
+  "No live banking, NCRP or I4C connections",
+  "Case data does not leave this deployment",
+];
+
+/** The same tone scale StatusPill draws, spelled out. */
+const FOOTER_STATUS = [
+  { tone: "accent", label: "Open", detail: "Logged, not yet worked" },
+  { tone: "elevated-risk", label: "Investigating", detail: "Assigned and in progress" },
+  { tone: "critical", label: "Escalated", detail: "Needs supervisor attention" },
+  { tone: "faint", label: "Closed", detail: "Outcome recorded" },
 ];
 
 const FOOTER_LINKS = [
@@ -593,6 +602,12 @@ function footer(): HTMLElement {
     h(
       "div",
       { class: "footer-block" },
+      // Operational, not promotional. This used to be a "Global telemetry
+    // clocks" row naming a model host in one timezone with audit and review
+    // desks in two others - a distributed footprint this deployment does not
+    // have. What a user of a law-enforcement console needs before handling a
+    // case is the handling rules, so that is what it says.
+
       h(
         "div",
         { class: "footer-telemetry" },
@@ -610,33 +625,18 @@ function footer(): HTMLElement {
               "stroke-width": 1.5,
               "aria-hidden": "true",
             },
-            svg("circle", { cx: 12, cy: 12, r: 9 }),
-            svg("path", { d: "M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" }),
+            svg("path", {
+              d: "M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z",
+            }),
+            svg("path", { d: "M9 12l2 2 4-4" }),
           ),
-          "Model snapshot · XGB v0.5.0",
+          "Handling",
         ),
-        // Static evaluation figures from the held-out test split — the same
-        // numbers quoted in the evaluation section above. No ticking clocks:
-        // wall time in three cities says nothing about the product.
         h(
-          "div",
-          {
-            class: "footer-clocks",
-          },
-          ...FOOTER_SNAPSHOT.map((stat) =>
-            h(
-              "div",
-              { class: "footer-clock" },
-              h("span", { class: "footer-clock-zone" }, stat.label),
-              h(
-                "span",
-                {
-                  class: "footer-clock-time tnum",
-                },
-                stat.value,
-              ),
-              h("span", { class: "footer-clock-role" }, stat.note),
-            ),
+          "ul",
+          { class: "footer-handling" },
+          ...FOOTER_HANDLING.map((rule) =>
+            h("li", { class: "footer-handling-item" }, rule),
           ),
         ),
       ),
@@ -666,11 +666,18 @@ function footer(): HTMLElement {
       h(
         "div",
         { class: "footer-cols" },
-        h("p", { class: "footer-head" }, "Scope"),
+        h("p", { class: "footer-head" }, "Case status"),
         h(
-          "p",
-          { class: "footer-body" },
-          "Authorised use only · Audit logged · No live banking, NCRP or I4C connections",
+          "dl",
+          { class: "footer-status" },
+          ...FOOTER_STATUS.flatMap((entry) => [
+            h(
+              "div",
+              { class: "footer-status-row" },
+              h("dt", { class: `footer-status-dot footer-status-dot-${entry.tone}` }),
+              h("dd", { class: "footer-status-text" }, entry.label, " — ", entry.detail),
+            ),
+          ]),
         ),
         h("p", { class: "footer-head footer-head-gap" }, "Built with"),
         h("p", { class: "footer-body" }, "XGBoost · H3 geospatial · FastAPI · React · Three.js"),

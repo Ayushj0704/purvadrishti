@@ -37,6 +37,16 @@ export function svg(tag: string, attrs: Attrs = {}, ...children: Child[]): SVGEl
   return el;
 }
 
+/** The nav mark. Same asset as the tab favicon and the console's
+ *  `Wordmark` component (`/logo.png`), so the mark, the favicon and the
+ *  console navbar are one identity rather than three. It was an inline SVG
+ *  reticle before, which is why the tab showed the real logo and the navbar
+ *  did not.
+ *
+ *  `aria-hidden` because the wrapping link already carries
+ *  `aria-label="PurvaDrishti home"`; the `alt` is there for a bare <img> but
+ *  is moot to assistive tech while the image is hidden. The asset is 217x216,
+ *  so forcing a square box costs a sub-pixel distortion. */
 export function wordmark(size: number): HTMLElement {
   return h("img", {
     src: "/logo.png",

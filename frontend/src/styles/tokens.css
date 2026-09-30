@@ -378,6 +378,16 @@
     color: var(--color-faint);
   }
 
+  /* Native dropdown lists ignore the glass background and paint with the OS
+     theme — pin their options to the console palette so light text never
+     lands on a white list. (The color-scheme meta in index.html does the
+     same job where option styling is ignored, e.g. Safari.) */
+  select.field option,
+  select.field optgroup {
+    background-color: #15151a;
+    color: #f4f4f5;
+  }
+
   .field:hover {
     border-color: #2c2c36;
   }

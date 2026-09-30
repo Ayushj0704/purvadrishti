@@ -46,7 +46,7 @@ interface RiskMapProps {
 const DEFAULT_VIEW_STATE = { longitude: 78.9629, latitude: 22.5937, zoom: 4.2 };
 
 export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskMapProps) {
-  // Grayscale raster basemap keeps the risk layers as the only colour on the map.
+  // Full-colour OpenStreetMap raster basemap.
   const mapStyle = useMemo(
     () => ({
       version: 8 as const,
@@ -64,10 +64,9 @@ export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskM
       },
       layers: [
         {
-          id: "desaturate",
+          id: "osm",
           type: "raster" as const,
           source: "osm-tiles",
-          paint: { "raster-saturation": -1, "raster-contrast": 0.15, "raster-brightness-max": 0.62 },
         },
       ],
     }),
@@ -76,8 +75,11 @@ export function RiskMap({ heatmapData, candidateAtms, viewState, onMove }: RiskM
 
   return (
     <div data-lenis-prevent className="relative h-full w-full bg-abyss">
+      {/* initialViewState (not spread longitude/latitude/zoom): spreading pins
+          the map as a controlled component, and without an onMove handler every
+          drag and zoom snaps back — the map looks frozen. */}
       <Map
-        {...(viewState || DEFAULT_VIEW_STATE)}
+        initialViewState={viewState || DEFAULT_VIEW_STATE}
         onMove={onMove}
         mapStyle={mapStyle}
         style={{ width: "100%", height: "100%" }}

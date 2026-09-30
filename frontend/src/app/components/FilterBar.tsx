@@ -96,8 +96,8 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
   const isFiltered = JSON.stringify(filters) !== JSON.stringify(DEFAULTS);
 
   return (
-    <div className="panel">
-      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+    <div className="panel panel-soft">
+      <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5 bg-black/[0.18]">
         <span className="label-caps text-muted">Query parameters</span>
         <button
           onClick={reset}
@@ -108,9 +108,9 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-px bg-hairline md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-px bg-black/[0.1] md:grid-cols-3 xl:grid-cols-5">
         {GROUPS.map((group) => (
-          <div key={group.key} className="flex flex-col gap-2 bg-surface p-4">
+          <div key={group.key} className="flex flex-col gap-2 bg-black/[0.05] p-4">
             <span className="label-caps text-faint">{group.label}</span>
             <GlideSelect
               size="sm"

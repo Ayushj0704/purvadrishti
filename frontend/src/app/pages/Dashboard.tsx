@@ -11,6 +11,7 @@ import { SectionHeader } from "../components/ui/Eyebrow";
 import { Panel, PanelHeader } from "../components/ui/Panel";
 import { Reveal } from "../components/ui/Reveal";
 import { Loader } from "../components/ui/Loader";
+import { GlideSelect } from "../components/ui/GlideSelect";
 import { StatusPill } from "../components/ui/StatusDot";
 import { heatmapApi, alertsApi, casesApi, toTopKRows, toAtmPoints, trailToEntities, HORIZON_OPTIONS } from "../api";
 import { canWrite, useRole } from "../lib/useRole";
@@ -19,6 +20,8 @@ import type { PredictionCandidate } from "../api/cases";
 import type { Alert } from "../api/alerts";
 import { StatusStrip } from "../components/layout/StatusStrip";
 import { formatCompact, formatTime } from "../lib/format";
+
+const RISK_LEVELS = ["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
 const TIME_WINDOW_HOURS: Record<string, number> = {
   "1h": 1,
@@ -203,7 +206,8 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-20">
-      <PageHeader
+      <PageHeader   
+        className="border-b-0"
         title={
           <>
             Predictive
@@ -281,46 +285,45 @@ export function Dashboard() {
           description="Risk is aggregated into H3 cells and weighted by active case volume. The basemap is desaturated so signal is the only colour on screen."
         />
 
-        <div className="grid gap-8 xl:grid-cols-12">
-          <Reveal className="xl:col-span-8">
-            <Panel className="h-full">
+        <div className="grid gap-8 xl:grid-cols-12 ">
+          <Reveal className="xl:col-span-8 ">
+            <Panel className="h-full panel-soft">
               <PanelHeader
+                className="bg-black/[0.36]"
                 index="02.1"
                 title="National risk heatmap"
                 meta={<span className="label-caps tnum text-faint">H3 · res 8</span>}
               />
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-hairline px-5 py-3">
-                <label className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-hairline px-5 py-3 bg-black/[0.36]">
+                <div className="flex items-center gap-2">
                   <span className="label-caps text-faint">Horizon</span>
-                  <select
-                    value={horizon}
-                    onChange={(e) => setHorizon(Number(e.target.value))}
+                  <GlideSelect
+                    size="sm"
+                    className="w-auto"
+                    items={HORIZON_OPTIONS.map((h) => ({
+                      value: String(h.minutes),
+                      label: h.label,
+                    }))}
+                    value={String(horizon)}
+                    onChange={(value) => setHorizon(Number(value))}
                     disabled={!writable || isLoading}
-                    aria-label="Scoring horizon"
-                    className="field field-mono w-auto py-1.5 text-xs"
-                  >
-                    {HORIZON_OPTIONS.map((h) => (
-                      <option key={h.minutes} value={h.minutes}>
-                        {h.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
+                    ariaLabel="Scoring horizon"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
                   <span className="label-caps text-faint">Min risk</span>
-                  <select
+                  <GlideSelect
+                    size="sm"
+                    className="w-auto"
+                    items={RISK_LEVELS.map((r) => ({
+                      value: r,
+                      label: r === "ALL" ? "All pins" : r,
+                    }))}
                     value={minRisk}
-                    onChange={(e) => setMinRisk(e.target.value)}
-                    aria-label="Minimum pin risk"
-                    className="field field-mono w-auto py-1.5 text-xs"
-                  >
-                    {["ALL", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((r) => (
-                      <option key={r} value={r}>
-                        {r === "ALL" ? "All pins" : r}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    onChange={setMinRisk}
+                    ariaLabel="Minimum pin risk"
+                  />
+                </div>
                 <span className="telemetry text-faint">
                   {visibleAtms?.features.length ?? 0} pins
                   {refreshing ? " · updating…" : ""}
@@ -338,18 +341,20 @@ export function Dashboard() {
             </Panel>
           </Reveal>
 
-          <div className="flex flex-col gap-8 xl:col-span-4">
+          <div className="flex flex-col gap-8 xl:col-span-4 ">
             <Reveal delay={80}>
+              <div className="rounded-2xl bg-black/[0.36] backdrop-blur-md">
               <TopKTable predictions={predictions} isLoading={!booted} index="03" caseId={topCaseId} rankingNote={rankingNote} />
               {!writable && !isLoading && (
                 <p className="mt-3 px-1 text-[0.6875rem] text-faint">
                   Candidate scoring requires the LEA Officer role or above — your read-only view shows heat and alerts.
                 </p>
-              )}
+              )}  
+              </div>
             </Reveal>
 
             <Reveal delay={160} className="flex-1">
-              <Panel>
+              <Panel className="panel-soft">
                 <PanelHeader
                   index="04"
                   title="Latest alerts"

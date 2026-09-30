@@ -20,7 +20,11 @@ export function TopNav() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 bg-transparent backdrop-blur-md">
+    // The bar was `bg-transparent`, so the blur had nothing to frost and the
+    // nav read as a bare strip of smeared content. 0.36 is the lighter end of
+    // the glass band: enough to sit the bar on its own surface without
+    // dimming the content that scrolls under it.
+    <header className="fixed inset-x-0 top-0 z-50 bg-black/[0.36] backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[110rem] items-center justify-between gap-8 px-5 sm:px-8">
         <NavLink to="/" className="group flex items-center gap-3 text-accent">
           <Wordmark className="size-9" />

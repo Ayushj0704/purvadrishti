@@ -16,8 +16,20 @@ interface Props {
 
 export function RecallAtKChart({ data, recallAt5, rocAuc }: Props) {
   return (
-    <div className="grid gap-px bg-hairline lg:grid-cols-12">
-      <div className="bg-surface px-5 py-6 lg:col-span-8">
+    /* No fills on the cells. This grid used to separate itself with
+       `gap-px` over bg-white/[0.06] plus bg-white/[0.015] and bg-white/[0.03]
+       cells, which was right when the panel glass was a *white* tint: the
+       lighter fills were meant to read as recessed panes. Now that the panel is
+       dark glass those white fills lighten the cells instead, so the chart
+       floats on pale patches inside a black frame and the material stops
+       matching the rest of the console.
+
+       The dividers are borders now, for the same reason `.glass-grey-divide`
+       uses them: a fill sits on top of the glass it is meant to be behind,
+       while a border only marks the edge and leaves the frost visible. That
+       keeps the panel's own gradient as the single source of the surface. */
+    <div className="grid lg:grid-cols-12">
+      <div className="px-5 py-6 lg:col-span-8 lg:border-r lg:border-hairline">
         <span className="label-caps text-faint">Recall @ K</span>
         <div className="mt-6 h-[16rem]">
           <ResponsiveContainer width="100%" height="100%">
@@ -61,8 +73,8 @@ export function RecallAtKChart({ data, recallAt5, rocAuc }: Props) {
         </p>
       </div>
 
-      <div className="flex flex-col gap-px bg-hairline lg:col-span-4">
-        <div className="flex flex-1 flex-col justify-between gap-6 bg-elevated p-5">
+      <div className="flex flex-col lg:col-span-4">
+        <div className="flex flex-1 flex-col justify-between gap-6 border-t border-hairline p-5 lg:border-t-0 lg:border-b">
           <span className="label-caps text-accent">Top-5 recall · 60 min</span>
           <div className="display tnum text-[clamp(2.5rem,5vw,3.75rem)] text-ink">
             {recallAt5.toFixed(1)}
@@ -74,7 +86,7 @@ export function RecallAtKChart({ data, recallAt5, rocAuc }: Props) {
           </p>
         </div>
 
-        <div className="flex flex-1 flex-col justify-between gap-6 bg-elevated p-5">
+        <div className="flex flex-1 flex-col justify-between gap-6 border-t border-hairline p-5 lg:border-t-0">
           <span className="label-caps text-muted">ROC-AUC · 60 min</span>
           <div className="display tnum text-[clamp(2rem,4vw,3rem)] text-muted">
             {rocAuc.toFixed(3)}

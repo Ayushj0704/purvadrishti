@@ -25,7 +25,7 @@ export function StatusStrip({ className }: { className?: string } = {}) {
 
   return (
     <div
-      className={cn("relative overflow-hidden border-y border-hairline bg-abyss", className)}
+      className={cn("relative overflow-hidden border-y border-hairline bg-black/[0.86]", className)}
       aria-hidden="true"
     >
       <div className="marquee-track py-3">

@@ -25,7 +25,7 @@ export function TopKTable({
 }: TopKTableProps) {
   const bestBet = predictions.find((p) => p.best_bet) ?? predictions[0];
   return (
-    <Panel>
+    <Panel className="panel-soft">
       <PanelHeader
         index={index}
         title={title}

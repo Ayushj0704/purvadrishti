@@ -166,7 +166,7 @@ export function TransactionGraph({ trail }: { trail?: { nodes: TrailNode[]; edge
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-hairline bg-abyss">
+      <div className="glass-grey overflow-hidden rounded-xl">
       <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
         <span className="label-caps text-muted">Money flow topology</span>
         <span className="telemetry text-faint">

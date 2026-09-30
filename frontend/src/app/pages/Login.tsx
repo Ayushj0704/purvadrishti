@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowRight, ShieldAlert } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { Wordmark } from "../components/layout/Wordmark";
 import { Button } from "../components/ui/Button";
+import { GlideSelect } from "../components/ui/GlideSelect";
 import { authApi } from "../api/auth";
 import { ApiError } from "../api/client";
 import { ROLE_OPTIONS } from "../lib/useRole";
@@ -41,11 +42,18 @@ export function Login() {
       authApi.saveSession(session.access_token, session.role);
       navigate("/");
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? "Invalid badge ID or passphrase."
-          : "Backend unreachable. Is the API running?",
-      );
+      // Only a 401/403 is actually about the credentials. Anything else is the
+      // API being down or erroring: the Vite proxy answers a dead backend with
+      // a 502, which fetchClient wraps in ApiError just like a rejected login,
+      // so branching on `instanceof ApiError` alone reported a dead server as
+      // "Invalid badge ID" and sent people hunting for the wrong problem.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setError("Invalid badge ID or passphrase.");
+      } else if (err instanceof ApiError) {
+        setError(`Auth service unavailable (HTTP ${err.status}). Is the API running?`);
+      } else {
+        setError("Backend unreachable. Is the API running?");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -57,22 +65,29 @@ export function Login() {
       <div className="glow-field -top-40 left-1/4" />
       <div className="noise-overlay" />
 
+      {/* Mark only, deliberately not a navbar. The console pages get TopNav;
+          this route is public and gets just the wordmark in the corner, with no
+          bar, no blur, no nav row and no fixed positioning to dress it up as
+          chrome. It sits at the grid's own px-5 sm:px-8 so the mark still lines
+          up with the text column below it. */}
+      <div className="absolute left-5 top-5 z-20 sm:left-8 sm:top-6">
+        <Link to="/" className="group flex items-center gap-3 text-accent">
+          <Wordmark className="size-9" />
+          <span className="text-[0.9375rem] font-semibold tracking-[-0.03em] text-ink">
+            PurvaDrishti
+          </span>
+        </Link>
+      </div>
+
       <div className="relative z-10 mx-auto grid min-h-screen max-w-[110rem] lg:grid-cols-12">
         {/* Manifesto */}
-        <section className="flex flex-col justify-between gap-16 border-hairline px-5 py-10 sm:px-8 lg:col-span-7 lg:border-r lg:py-14">
-          <div className="flex items-center gap-3 text-accent">
-            <Wordmark className="size-10" />
-            <div className="flex flex-col leading-none">
-              <span className="text-base font-semibold tracking-[-0.03em] text-ink">
-                PurvaDrishti
-              </span>
-              <span className="eyebrow mt-1.5">Cash-out intelligence</span>
-            </div>
-          </div>
-
+        {/* Top padding clears the fixed 4rem header; the group is top-aligned
+            with a fixed gap so the space between the heading and the pillar bar
+            is a deliberate value rather than whatever `justify-between` had
+            left over after stretching to fill the viewport. */}
+        <section className="flex flex-col gap-10 border-hairline px-5 pb-10 pt-20 sm:px-8 lg:col-span-7 lg:border-r lg:pb-14 lg:pt-24">
           <div className="animate-rise">
-            <p className="eyebrow text-accent">Predictive cash-out intelligence</p>
-            <h1 className="display mt-8 text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
+            <h1 className="display text-[clamp(3rem,8.5vw,7.5rem)] text-ink">
               The money
               <br />
               leaves a trail.
@@ -82,13 +97,13 @@ export function Login() {
             <p className="mt-8 max-w-lg text-sm leading-relaxed text-muted">
               Fraud funds surface as cash within hours, somewhere in India. PurvaDrishti turns a
               victim complaint into a ranked list of probable ATMs and a predicted withdrawal
-              window — before the cash is gone.
+              window, before the cash is gone.
             </p>
           </div>
 
-          <ul className="grid gap-px overflow-hidden rounded-xl border border-hairline bg-hairline sm:grid-cols-3">
+          <ul className="glass-grey glass-grey-divide grid overflow-hidden rounded-xl sm:grid-cols-3">
             {PILLARS.map((pillar) => (
-              <li key={pillar.index} className="flex flex-col gap-3 bg-surface p-5">
+              <li key={pillar.index} className="flex flex-col gap-3 p-5">
                 <span className="label-caps tnum text-accent">{pillar.index}</span>
                 <span className="text-sm font-medium tracking-[-0.01em] text-ink">
                   {pillar.title}
@@ -101,45 +116,34 @@ export function Login() {
 
         {/* Auth */}
         <section className="flex flex-col justify-center gap-6 px-5 py-10 sm:px-8 lg:col-span-5 lg:py-14">
-          <div className="flex items-start gap-3 rounded-lg border border-elevated-risk/40 bg-elevated-risk/15 p-4">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-elevated-risk" />
-            <p className="text-xs leading-relaxed text-muted">
-              Synthetic environment. No live banking, NCRP or I4C systems are connected. Every
-              record you see is generated.
-            </p>
-          </div>
-
           <form
             onSubmit={handleLogin}
-            className="flex flex-col gap-7 rounded-xl border border-hairline bg-surface p-6 sm:p-8"
+            className="glass-grey flex flex-col gap-7 rounded-xl p-6 sm:p-8"
           >
             <div className="flex flex-col gap-2">
               <h2 className="display text-[clamp(2rem,4vw,3rem)] text-ink">Authenticate</h2>
               <p className="text-sm text-muted">Restricted to authorised personnel.</p>
             </div>
 
-            <label className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5">
               <span className="eyebrow">Role</span>
-              <select
+              <GlideSelect
+                size="lg"
+                items={ROLE_OPTIONS.map((opt) => ({
+                  value: opt.username,
+                  label: opt.label,
+                  tag: opt.blurb,
+                }))}
                 value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
+                onChange={(value) => {
+                  setUsername(value);
                   setPassword("demo");
                   setError("");
                 }}
-                className="field field-mono"
-                aria-label="Sign in as role"
-              >
-                <option value="" disabled>
-                  Select your role…
-                </option>
-                {ROLE_OPTIONS.map((opt) => (
-                  <option key={opt.username} value={opt.username}>
-                    {opt.label} — {opt.blurb}
-                  </option>
-                ))}
-              </select>
-            </label>
+                placeholder="Select your role…"
+                ariaLabel="Sign in as role"
+              />
+            </div>
 
             <label className="flex flex-col gap-2.5">
               <span className="eyebrow">Badge ID</span>

@@ -4,7 +4,7 @@
    through the `colors` prop without a second stylesheet. */
 
 .glide-select {
-  --glide-bg: rgba(255, 255, 255, 0.06);
+  --glide-bg: rgba(0, 0, 0, 0.36);
   --glide-fg: var(--color-ink, #f5f5f5);
   --glide-dim: var(--color-muted, #a1a1ac);
   --glide-border: rgba(255, 255, 255, 0.12);
@@ -90,6 +90,11 @@
   white-space: nowrap;
 }
 
+/* Placeholder text, not a real selection: dimmed so it never reads as a value. */
+.glide-value[data-empty] {
+  color: var(--glide-dim);
+}
+
 .glide-arrow {
   flex: 0 0 auto;
   display: inline-flex;
@@ -104,12 +109,18 @@
 /* ---- Menu ----
    Portalled to <body> and positioned from the trigger rect, so this is always
    fixed to the viewport. `.panel` clips its overflow and `.reveal` retains a
-   transform, either of which would cut an in-flow overlay off. */
+   transform, either of which would cut an in-flow overlay off.
+
+   0.46, the deeper end of the glass band, because this one floats over live
+   content and its option labels have to stay legible against whatever scrolls
+   underneath - the trigger, by contrast, sits still and can use 0.36. It was
+   rgba(21,21,26,0.92) before, which was opaque enough to read as a solid
+   sheet rather than glass. */
 .glide-menu {
   position: fixed;
   z-index: 40;
   padding: 4px;
-  background-color: rgba(21, 21, 26, 0.92);
+  background-color: rgba(0, 0, 0, 0.46);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
   border: 1px solid var(--glide-border);

@@ -205,7 +205,7 @@ export function Cases() {
               {showForm && (
                 <form
                   onSubmit={handleManualSubmit}
-                  className="grid grid-cols-1 gap-4 rounded-xl border border-hairline bg-abyss p-5 sm:grid-cols-2"
+                  className="glass-grey grid grid-cols-1 gap-4 rounded-xl p-5 sm:grid-cols-2"
                 >
                   <label className="flex flex-col gap-2">
                     <span className="eyebrow">Fraud vector</span>

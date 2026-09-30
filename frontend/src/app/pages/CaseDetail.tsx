@@ -299,9 +299,9 @@ export function CaseDetail() {
 
       {/* Case facts */}
       <Reveal>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-hairline bg-hairline lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-hairline bg-white/[0.06] lg:grid-cols-4">
           {facts.map((fact, i) => (
-            <div key={fact.label} className="flex flex-col gap-3 bg-surface p-5">
+            <div key={fact.label} className="flex flex-col gap-3 bg-white/[0.015] p-5">
               <span className="label-caps text-faint">
                 <span className="tnum text-accent">{String(i + 1).padStart(2, "0")}</span> ·{" "}
                 {fact.label}
@@ -412,9 +412,9 @@ export function CaseDetail() {
                 title="Recommended actions"
                 meta={<span className="label-caps tnum text-faint">Derived from this file</span>}
               />
-              <ol className="flex flex-col gap-px bg-hairline">
+              <ol className="flex flex-col gap-px bg-white/[0.06]">
                 {best && (
-                  <li className="flex flex-col gap-1.5 bg-surface px-5 py-4">
+                  <li className="flex flex-col gap-1.5 bg-white/[0.015] px-5 py-4">
                     <span className="label-caps text-accent">
                       {best.risk_level === "CRITICAL" || best.risk_level === "HIGH"
                         ? "Verify on priority"
@@ -429,7 +429,7 @@ export function CaseDetail() {
                   </li>
                 )}
                 {heatWatch.length > 0 && (
-                  <li className="flex flex-col gap-1.5 bg-surface px-5 py-4">
+                  <li className="flex flex-col gap-1.5 bg-white/[0.015] px-5 py-4">
                     <span className="label-caps text-elevated-risk">Monitor burst terminals</span>
                     <span className="text-sm text-ink">
                       {heatWatch.length} bursting ATM{heatWatch.length === 1 ? "" : "s"}:{" "}
@@ -442,7 +442,7 @@ export function CaseDetail() {
                   </li>
                 )}
                 {!best && heatWatch.length === 0 && (
-                  <li className="bg-surface px-5 py-4 text-xs text-faint">
+                  <li className="bg-white/[0.015] px-5 py-4 text-xs text-faint">
                     Score this case to generate terminal hypotheses and actions.
                   </li>
                 )}

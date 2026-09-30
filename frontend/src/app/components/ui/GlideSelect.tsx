@@ -37,6 +37,8 @@ export interface GlideSelectProps {
   value?: string;
   defaultValue?: string;
   onChange?: (value: string, option: GlideSelectOption) => void;
+  /** Chip text while nothing is selected. */
+  placeholder?: string;
   size?: Size;
   radius?: number;
   /** Explicit menu width; defaults to the trigger width, minimum 11rem. */
@@ -120,6 +122,7 @@ export function GlideSelect({
   value,
   defaultValue,
   onChange,
+  placeholder = "Select…",
   size = "md",
   radius,
   menuWidth,
@@ -357,32 +360,30 @@ export function GlideSelect({
   const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     const { key } = event;
 
-    if (typeRef.current) {
-      if (key === "Backspace") {
-        typeRef.current = typeRef.current.slice(0, -1);
-        matchTypeahead();
-        resetTypeahead();
-        event.preventDefault();
-        return;
-      }
-      if (key === "Escape") {
-        typeRef.current = "";
-        return;
-      }
-      if (key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        typeRef.current += key.toLowerCase();
-        matchTypeahead();
-        resetTypeahead();
-        event.preventDefault();
-        return;
-      }
-    }
-
     if (!open) {
       if (key === "ArrowDown" || key === "ArrowUp" || key === "Enter" || key === " ") {
         event.preventDefault();
         show();
       }
+      return;
+    }
+
+    // Typeahead, only once the list is up. The buffer starts empty, so the
+    // first keystroke has to seed it: gating this on a non-empty buffer made
+    // every single-character jump -- the common case, and the one the original
+    // handled -- a silent no-op, since nothing ever wrote the first character.
+    if (key === "Backspace" && typeRef.current) {
+      typeRef.current = typeRef.current.slice(0, -1);
+      matchTypeahead();
+      resetTypeahead();
+      event.preventDefault();
+      return;
+    }
+    if (key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      typeRef.current += key.toLowerCase();
+      matchTypeahead();
+      resetTypeahead();
+      event.preventDefault();
       return;
     }
 
@@ -457,8 +458,8 @@ export function GlideSelect({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       >
-        <span className="glide-value" key={current}>
-          {selected ? selected.label : "Select\u2026"}
+        <span className="glide-value" key={current} data-empty={selected ? undefined : ""}>
+          {selected ? selected.label : placeholder}
         </span>
         <span className="glide-arrow" aria-hidden="true">
           <HugeiconsIcon icon={ArrowDown01Icon} size={12} strokeWidth={1.75} />

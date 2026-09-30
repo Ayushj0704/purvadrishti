@@ -31,7 +31,13 @@ const OPS_ITEMS = [
 
 export function PageFooter() {
   return (
-    <footer className="relative mt-24 w-full overflow-hidden border-t border-hairline bg-black px-4 pb-12 pt-16 text-ink sm:px-8 sm:pt-24 lg:px-12">
+    /* No horizontal padding on the band itself: it is full-bleed now, and the
+       gutter belongs to the inner container so the interior can mirror <main>'s
+       exact box (mx-auto w-full max-w-[110rem] px-5 sm:px-8) and land on the
+       same content edges at every viewport. The previous px-4 sm:px-8 lg:px-12
+       sat on the element, which measured 48px of inset against the page's 32px
+       and left the footer's columns visibly off the grid. */
+    <footer className="relative w-full overflow-hidden border-t border-hairline bg-black pb-12 pt-16 text-ink sm:pt-24">
       {/* Ambient glow. Decorative, and blurred hard enough that it never has an
           edge to see - aria-hidden so it stays out of the accessibility tree. */}
       <div
@@ -43,14 +49,21 @@ export function PageFooter() {
         className="pointer-events-none absolute bottom-0 left-0 h-[400px] w-[400px] rounded-full bg-accent-strong/[0.06] blur-[100px]"
       />
 
-        {/* max-w matches the rest of the console, and the wordmark is sized in
-            `cqw` against this container rather than `vw` against the viewport.
-            The footer is nested inside the page's own max-w-[110rem] shell, so
-            at a wide viewport the container is narrower than the window - sizing
-            off vw made the wordmark overflow the container and clip at the right
-            edge, while looking correctly sized on the landing page where it is
-            not nested. */}
-        <div className="container-type: inline-size relative z-10 mx-auto max-w-[110rem] space-y-16">
+        {/* Mirrors <main>'s box exactly, so the columns below line up with the
+            page above. The wordmark is sized in `cqw` against this container
+            rather than `vw` against the viewport, which is what keeps its tail
+            inside the frame: the band is full-bleed, but this container is
+            still capped at the console's max-w, so the measured box is narrower
+            than the window and the glyphs scale to the column, not the screen. */}
+        {/* `[container-type:inline-size]`, with the brackets: Tailwind v4 dropped
+            the unbracketed `container-type: inline-size` form, so the old class
+            was silently discarded and never reached the stylesheet. With no
+            query container in scope, `cqw` falls back to the small viewport, so
+            the wordmark was scaling off the *window* - exactly the bug these
+            comments were written to prevent - and clipped once the viewport
+            passed the container's max-w. Verified: 2560px rendered the word at
+            268.8px (0.105 x 2560) and overflowed its 1696px column by 279px. */}
+        <div className="[container-type:inline-size] relative z-10 mx-auto w-full max-w-[110rem] space-y-16 px-5 sm:px-8">
           {/* ------------------------------------------------------- wordmark ---- */}
           {/* Leading the footer rather than closing it: set at display size it
               reads as the footer's heading, and the telemetry settles underneath
@@ -58,9 +71,9 @@ export function PageFooter() {
               h1 - every console page already has one, and a second here would
               compete with the page title in the document outline. */}
           {/* `cqw`, not `vw`: sized against this container, which is itself
-              narrower than the viewport because the footer is nested inside the
-              page's max-w-[110rem] shell. Sizing off the viewport pushed the
-              tail of the word past the right edge on every console page.
+              narrower than the viewport because the band is full-bleed while
+              this container stays capped at the console's max-w. Sizing off the
+              viewport pushed the tail of the word past the right edge.
 
               10.5cqw, not 12: "PURVADRISHTI" is 12 glyphs plus the full stop at
               font-black / tracking-tighter, which measures at about 8.8em of
@@ -96,7 +109,7 @@ export function PageFooter() {
               {OPS_ITEMS.map((item) => (
                 <li
                   key={item.label}
-                  className="rounded-2xl border border-hairline bg-elevated p-4"
+                  className="glass-grey rounded-2xl p-4"
                 >
                   <span className="text-[0.625rem] font-medium uppercase tracking-[0.1em] text-faint">
                     {item.label}

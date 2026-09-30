@@ -190,6 +190,20 @@ export interface TimelineItem {
   text: string;
 }
 
+export interface StoredPrediction {
+  atm_id: string;
+  lat: number | null;
+  lon: number | null;
+  state: string;
+  district: string;
+  score: number;
+  risk_level: RiskLevel;
+  h3_cell: string;
+  horizon_minutes: number;
+  model_version: string;
+  generated_at: string | null;
+}
+
 export interface TrailNode {
   id: string;
   kind: 'victim' | 'mule' | 'atm';
@@ -239,6 +253,29 @@ export interface ReportResponse {
   summary: string;
   predictions: string[];
   note: string;
+  description: {
+    external_case_id: string;
+    fraud_type: string;
+    crime_subcategory: string | null;
+    fraud_amount: number | null;
+    status: string;
+    reported_at: string | null;
+    complainant_state: string;
+    complainant_district: string;
+    incident_state: string;
+    incident_district: string;
+    bank_name: string;
+    transaction_id: string | null;
+    destination_bank: string;
+    incident_details: string;
+    victim_location: { lat: number | null; lon: number | null };
+    source: string;
+    linked_transactions: number;
+    mule_hops: number;
+    timeline_events: number;
+    open_alerts: number;
+    suspect: { mobile: string; email: string; account_ref: string; url_present: boolean };
+  };
 }
 
 export interface SimilarCase {
@@ -281,6 +318,11 @@ export const casesApi = {
     ),
   getExplanations: (caseId: string | number) =>
     api.get<ExplanationResponse>(`/cases/${caseId}/explanations`),
+  /** Latest persisted predictions — read-only, never re-scores. */
+  getStoredPredictions: (caseId: string | number, limit = 20) =>
+    api.get<{ case_id: number; count: number; predictions: StoredPrediction[] }>(
+      `/cases/${caseId}/predictions?limit=${limit}`,
+    ),
   getTimeline: (caseId: string | number) =>
     api.get<{ case_id: number; events: TimelineItem[] }>(`/cases/${caseId}/timeline`),
   getTrail: (caseId: string | number) =>

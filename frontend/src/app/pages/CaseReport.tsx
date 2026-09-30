@@ -150,7 +150,73 @@ export function CaseReport() {
 
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              2 · Complaint summary
+              2 · Case description
+            </h2>
+            {report.description.incident_details ? (
+              <p className="mt-2 text-sm leading-relaxed">{report.description.incident_details}</p>
+            ) : (
+              <p className="mt-2 text-sm italic text-neutral-500">
+                No written complaint narrative on file — details below are system-observed.
+              </p>
+            )}
+            <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Vector</dt>
+                <dd>{report.description.crime_subcategory || report.description.fraud_type}</dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Districts</dt>
+                <dd>
+                  {report.description.complainant_district || "—"}
+                  {report.description.incident_district &&
+                  report.description.incident_district !== report.description.complainant_district
+                    ? ` → ${report.description.incident_district}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Bank / UTR</dt>
+                <dd>
+                  {report.description.bank_name || "—"}
+                  {report.description.transaction_id ? ` · ${report.description.transaction_id}` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Source</dt>
+                <dd>{report.description.source === "manual" ? "Manual entry" : report.description.source}</dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Trail</dt>
+                <dd>
+                  {report.description.mule_hops} mule hop{report.description.mule_hops === 1 ? "" : "s"} ·{" "}
+                  {report.description.linked_transactions} transactions
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Timeline</dt>
+                <dd>{report.description.timeline_events} events on record</dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Open alerts</dt>
+                <dd>{report.description.open_alerts}</dd>
+              </div>
+              <div>
+                <dt className="text-[0.6875rem] uppercase tracking-wider text-neutral-500">Suspect traces</dt>
+                <dd>
+                  {[report.description.suspect.mobile && `mobile ${report.description.suspect.mobile}`,
+                    report.description.suspect.email && `email ${report.description.suspect.email}`,
+                    report.description.suspect.account_ref && `acct ${report.description.suspect.account_ref}`,
+                    report.description.suspect.url_present && "link on file"]
+                    .filter(Boolean)
+                    .join(" · ") || "none linked"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section>
+            <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
+              3 · Complaint summary
             </h2>
             <p className="mt-2 text-sm leading-relaxed">{report.summary}</p>
             <dl className="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm sm:grid-cols-4">
@@ -180,7 +246,7 @@ export function CaseReport() {
 
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              3 · Ranked cash-out hypotheses
+              4 · Ranked cash-out hypotheses
               {predictions ? ` · model ${predictions.model_version}` : ""}
             </h2>
             {rows.length > 0 ? (
@@ -223,7 +289,7 @@ export function CaseReport() {
 
           <section>
             <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-neutral-500">
-              4 · Model notes
+              5 · Model notes
             </h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed">
               {report.predictions.map((line, i) => (

@@ -47,10 +47,26 @@ export function Alerts() {
     };
   }, [reloadKey]);
 
+  const handleResolve = useCallback(async (alertId: string) => {
+    setProcessingId(alertId);
+    setAlerts((prev) =>
+      prev.map((a) => (a.alert_id === alertId ? { ...a, status: "RESOLVED" } : a)),
+    );
+    try {
+      await alertsApi.resolveAlert(alertId);
+    } catch {
+      setAlerts((prev) =>
+        prev.map((a) => (a.alert_id === alertId ? { ...a, status: "ACKED" } : a)),
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  }, []);
+
   const handleAcknowledge = useCallback(async (alertId: string) => {
     setProcessingId(alertId);
     const flip = (list: Alert[]) =>
-      list.map((a) => (a.alert_id === alertId ? { ...a, status: "ACKNOWLEDGED" } : a));
+      list.map((a) => (a.alert_id === alertId ? { ...a, status: "ACKED" } : a));
 
     setAlerts((prev) => flip(prev));
     try {
@@ -207,10 +223,26 @@ export function Alerts() {
                                 <Check className="size-3" />
                                 {busy ? "Saving" : "Acknowledge"}
                               </Button>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-stable">
+                            ) : alert.status === "RESOLVED" ? (
+                              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-faint">
                                 <Check className="size-3" />
-                                Acknowledged
+                                Resolved
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-stable">
+                                  <Check className="size-3" />
+                                  Acknowledged
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleResolve(alert.alert_id)}
+                                  disabled={busy || !writable}
+                                  title={writable ? "Mark field work complete" : "Requires LEA Officer role or above"}
+                                >
+                                  {busy ? "Saving" : "Resolve"}
+                                </Button>
                               </span>
                             )}
                           </div>

@@ -608,6 +608,17 @@ def ack(alert_id: int, db: Session = Depends(get_db),
     return {"alert_id": alert_id, "status": "ACKED"}
 
 
+@app.post("/api/v1/alerts/{alert_id}/resolve")
+def resolve_alert(alert_id: int, db: Session = Depends(get_db),
+                  role: str = Depends(require_roles("LEA_OFFICER"))):
+    """Close the loop: NEW → ACKED → RESOLVED (spec §24 dispatch workflow)."""
+    a = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not a: raise HTTPException(404, "alert not found")
+    a.status = "RESOLVED"; db.commit()
+    audit(db, role, "resolve", "alert", alert_id)
+    return {"alert_id": alert_id, "status": "RESOLVED"}
+
+
 class NotifyIn(BaseModel):
     emails: list[str] = []
     phones: list[str] = []
@@ -687,6 +698,31 @@ def explanations(case_id: int, db: Session = Depends(get_db),
             "features": {k: round(float(v), 1) for k, v in feats.items()}}
 
 
+@app.get("/api/v1/cases/{case_id}/predictions")
+def stored_predictions(case_id: int, limit: int = 20,
+                       db: Session = Depends(get_db),
+                       role: str = Depends(require_roles("BANK_ANALYST"))):
+    """Latest persisted predictions for a case (spec §25) — read-only, never
+    re-scores, so viewing history has no side effects."""
+    c = db.query(Case).filter(Case.id == case_id).first()
+    if not c: raise HTTPException(404, "case not found")
+    rows = db.query(Prediction).filter(Prediction.case_id == case_id).order_by(
+        Prediction.prediction_score.desc()).limit(limit).all()
+    atm_lookup = {a.id: a for a in _ATM_CACHE} if _ATM_CACHE else {}
+    out = []
+    for p in rows:
+        a = atm_lookup.get(p.atm_id) or db.query(ATM).filter(ATM.id == p.atm_id).first()
+        out.append({"atm_id": a.atm_code if a else f"ATM-{p.atm_id}",
+                    "lat": a.lat if a else None, "lon": a.lon if a else None,
+                    "state": a.state if a else "",
+                    "district": getattr(a, "district", "") if a else "",
+                    "score": p.prediction_score, "risk_level": p.risk_level,
+                    "h3_cell": p.h3_cell, "horizon_minutes": p.horizon_minutes,
+                    "model_version": p.model_version,
+                    "generated_at": p.generated_at.isoformat() if p.generated_at else None})
+    return {"case_id": case_id, "count": len(out), "predictions": out}
+
+
 @app.get("/api/v1/cases/{case_id}/similar-cases")
 def similar_cases(case_id: int, limit: int = 5, db: Session = Depends(get_db),
                   role: str = Depends(require_roles("BANK_ANALYST"))):
@@ -708,7 +744,7 @@ def report(case_id: int, db: Session = Depends(get_db),
            role: str = Depends(require_roles("BANK_ANALYST"))):
     """Draft intelligence report from REAL backend rows only (DEMO data
     labelled; nothing invented — LLM wording layer may polish later)."""
-    from app.db.models import Transaction
+    from app.db.models import Transaction, Withdrawal
     c = db.query(Case).filter(Case.id == case_id).first()
     if not c: raise HTTPException(404, "case not found")
     preds = db.query(Prediction).filter(Prediction.case_id == case_id).order_by(
@@ -720,6 +756,23 @@ def report(case_id: int, db: Session = Depends(get_db),
         lines.append(f"- {a.atm_code if a else p.atm_id} ({a.state if a else '?'}) "
                      f"score={p.prediction_score} risk={p.risk_level} cell={p.h3_cell}")
     n_tx = db.query(Transaction).filter(Transaction.case_id == case_id).count()
+    txns = db.query(Transaction).filter(Transaction.case_id == case_id).all()
+    mule_refs = sorted({t.destination_account_ref for t in txns if t.destination_account_ref})
+    # Suspect entities present on the file (masked — full values stay in DB).
+    def _mask(v):
+        return ("••" + v[-4:]) if v and len(v) > 4 else ("•••" if v else "")
+    suspect = {
+        "mobile": _mask(c.suspect_mobile),
+        "email": _mask(c.suspect_email),
+        "account_ref": _mask(c.suspect_account_ref),
+        "url_present": bool(c.suspect_url),
+    }
+    n_events = (1 + len(txns)
+                + db.query(Withdrawal).filter(Withdrawal.linked_case_id == case_id).count()
+                + db.query(Prediction).filter(Prediction.case_id == case_id).count()
+                + db.query(Alert).filter(Alert.case_id == case_id).count())
+    open_alerts = db.query(Alert).filter(
+        Alert.case_id == case_id, Alert.status != "RESOLVED").count()
     return {
         "case_id": case_id, "banner": "DRAFT",
         "title": f"Cash-out intelligence — {c.external_case_id}",
@@ -729,6 +782,30 @@ def report(case_id: int, db: Session = Depends(get_db),
         "predictions": lines,
         "note": "Ranked intelligence for authorized human decision-makers; "
                 "not a directive for field action.",
+        # Case description block for the printable file (all observed rows).
+        "description": {
+            "external_case_id": c.external_case_id,
+            "fraud_type": c.fraud_type,
+            "crime_subcategory": c.crime_subcategory,
+            "fraud_amount": c.fraud_amount,
+            "status": c.status,
+            "reported_at": c.reported_at.isoformat() if c.reported_at else None,
+            "complainant_state": c.complainant_state,
+            "complainant_district": c.complainant_district,
+            "incident_state": c.incident_state,
+            "incident_district": c.incident_district,
+            "bank_name": c.bank_name,
+            "transaction_id": c.transaction_id,
+            "destination_bank": c.destination_bank,
+            "incident_details": c.incident_details or "",
+            "victim_location": {"lat": c.victim_lat, "lon": c.victim_lon},
+            "source": getattr(c, "source", "manual"),
+            "linked_transactions": n_tx,
+            "mule_hops": len(mule_refs),
+            "timeline_events": n_events,
+            "open_alerts": open_alerts,
+            "suspect": suspect,
+        },
     }
 
 

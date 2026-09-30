@@ -21,6 +21,8 @@ export interface NotifyResult {
 export const alertsApi = {
   getAlerts: () => api.get<Alert[]>('/alerts'),
   acknowledgeAlert: (alertId: string) => api.post(`/alerts/${alertId}/acknowledge`),
+  /** Close the loop: NEW → ACKED → RESOLVED (spec §24 dispatch workflow). */
+  resolveAlert: (alertId: string) => api.post(`/alerts/${alertId}/resolve`),
   /** Manual SMS/Email/Webhook re-dispatch trigger (POST /alerts/{id}/notify). */
   notifyAlert: (alertId: string, recipients: { emails?: string[]; phones?: string[] } = {}) =>
     api.post<NotifyResult>(`/alerts/${alertId}/notify`, {

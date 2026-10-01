@@ -238,6 +238,36 @@ interface RiskMapProps {
 
 const DEFAULT_VIEW_STATE = { longitude: 78.9629, latitude: 22.5937, zoom: 4.2 };
 
+/** Keeps the map canvas in step with its container.
+ *
+ *  react-map-gl only calls `map.resize()` itself when the size is *controlled*
+ *  through `viewState.width/height` (see its `_updateSize`). This map is sized
+ *  with `style={{ width: "100%", height: "100%" }}` instead, so nothing
+ *  re-measures it when the box changes - and MapLibre's own `trackResize` only
+ *  listens to *window* resize, not a container whose height is driven by a
+ *  sibling in a grid row.
+ *
+ *  That matters on the dashboard: the heatmap panel stretches to match the
+ *  taller Top-K/alerts column beside it, so the map box grows without any
+ *  window resize occurring. Without this the canvas keeps its old pixel size
+ *  and the growth shows up as dead space inside the map instead of below it.
+ */
+function MapResizer() {
+  const { current: mapRef } = useMap();
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    const container = map?.getContainer();
+    if (!map || !container) return;
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(container);
+    // The first observation fires immediately, which also covers a container
+    // that was already at its final size before this effect ran.
+    map.resize();
+    return () => observer.disconnect();
+  }, [mapRef]);
+  return null;
+}
+
 export function RiskMap({ heatmapData, candidateAtms, entities, viewState, onMove }: RiskMapProps) {
   // Full-colour OpenStreetMap raster basemap.
   const mapStyle = useMemo(
@@ -397,6 +427,7 @@ export function RiskMap({ heatmapData, candidateAtms, entities, viewState, onMov
         )}
 
         <HaloAnimator />
+        <MapResizer />
         <TrailReplay stops={story} onSelect={selectFeature} />
       </Map>
 

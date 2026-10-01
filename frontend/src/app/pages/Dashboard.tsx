@@ -287,7 +287,7 @@ export function Dashboard() {
 
         <div className="grid gap-8 xl:grid-cols-12 ">
           <Reveal className="xl:col-span-8 ">
-            <Panel className="h-full panel-soft">
+            <Panel className="panel-soft flex h-full flex-col">
               <PanelHeader
                 className="bg-black/[0.36]"
                 index="02.1"
@@ -329,7 +329,12 @@ export function Dashboard() {
                   {refreshing ? " · updating…" : ""}
                 </span>
               </div>
-              <div className="h-[clamp(24rem,52vh,40rem)]">
+              {/* `flex-1` so the map absorbs whatever height the row takes from
+                  the taller Top-K/alerts column beside it. The clamp is kept as a
+                  `min-h` floor, not the height itself: as a fixed height the map
+                  left the surplus as dead space inside the panel. MapResizer in
+                  RiskMap re-measures the canvas when this box changes. */}
+              <div className="min-h-[clamp(24rem,52vh,40rem)] flex-1">
                 {!booted ? (
                   <div className="flex h-full flex-col justify-center">
                     <Loader label="Loading live map layers…" />

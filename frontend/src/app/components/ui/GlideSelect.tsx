@@ -471,6 +471,7 @@ export function GlideSelect({
           <div
             ref={menuRef}
             className="glide-menu"
+            onPointerDown={(e) => e.preventDefault()}
             style={{
               top: coords?.top ?? 0,
               left: coords?.left ?? 0,

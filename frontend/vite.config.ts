@@ -87,7 +87,7 @@ export default defineConfig({
     fs: { allow: [".."] },
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8001",
         changeOrigin: true,
       },
     },
@@ -95,7 +95,7 @@ export default defineConfig({
   preview: {
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8001",
         changeOrigin: true,
       },
     },

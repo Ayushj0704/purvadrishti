@@ -50,6 +50,8 @@ _HOTSPOTS_CACHE: dict = {"ts": 0.0, "key": None, "data": None}
 _HOTSPOTS_TTL = 30.0
 _VELOCITY_CACHE: dict = {"ts": 0.0, "key": None, "data": None}
 _VELOCITY_TTL = 60.0
+_ALERTS_CACHE: dict = {"ts": 0.0, "key": None, "data": None}
+_ALERTS_TTL = 15.0
 
 @app.on_event("startup")
 def startup_warmup():
@@ -255,8 +257,11 @@ def list_txn(case_id: int, db: Session = Depends(get_db),
             for t in db.query(Transaction).filter(Transaction.case_id == case_id).limit(100).all()]
 
 @app.get("/api/v1/cases")
-def list_cases(db: Session = Depends(get_db),
+def list_cases(limit: int = 100, offset: int = 0,
+               db: Session = Depends(get_db),
                role: str = Depends(require_roles("BANK_ANALYST"))):
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
     return [{"case_id": c.id, "external_case_id": c.external_case_id,
              "fraud_type": c.fraud_type,
              "crime_subcategory": c.crime_subcategory,
@@ -265,19 +270,25 @@ def list_cases(db: Session = Depends(get_db),
              "reported_at": c.reported_at.isoformat() if c.reported_at else None,
              "complainant_state": c.complainant_state,
              "incident_state": c.incident_state}
-            for c in db.query(Case).order_by(Case.id.desc()).limit(100).all()]
+            for c in db.query(Case).order_by(Case.id.desc()).offset(offset).limit(limit).all()]
 
 @app.get("/api/v1/cases/samples")
 def sample_cases(limit: int = 20, state: str | None = None,
                  db: Session = Depends(get_db),
                  role: str = Depends(require_roles("BANK_ANALYST"))):
     """Demo pool for 'Simulate I4C portal fetch': random seeded cases.
-    Real deployment replaces this with the CFCFRMS poller."""
-    import random as _r
-    q = db.query(Case).order_by(Case.id.desc()).limit(500).all()
+    Real deployment replaces this with the CFCFRMS poller.
+
+    P0: DB-side random sampling (was: load 500 full rows + python filter)."""
+    from sqlalchemy import func as _func, or_ as _or
+    from app.db.models import Case as _Case
+    limit = max(1, min(limit, 50))
+    q = db.query(_Case)
     if state:
-        q = [c for c in q if c.incident_state == state or c.complainant_state == state]
-    picks = _r.sample(q, min(limit, len(q))) if q else []
+        q = q.filter(_or(_Case.incident_state == state,
+                         _Case.complainant_state == state))
+    # func.random() works on both sqlite and postgres
+    picks = q.order_by(_func.random()).limit(limit).all()
     return [{"case_id": c.id, "external_case_id": c.external_case_id,
              "subcategory": c.crime_subcategory, "amount": c.fraud_amount,
              "incident_state": c.incident_state,
@@ -534,23 +545,37 @@ def velocity(hours: int = 24, db: Session = Depends(get_db),
              role: str = Depends(require_roles("BANK_ANALYST"))):
     """Pipeline throughput: hourly buckets of inbound complaints vs generated
     predictions over the trailing window (powers the Analytics velocity chart
-    with observed counts — no sampling, no synthesis)."""
+    with observed counts — no sampling, no synthesis).
+
+    P0: 2 queries total (was 2 per bucket = 48 round-trips). Timestamps are
+    fetched once per table and bucketed in Python — DB-agnostic (sqlite +
+    postgres) and a single cross-region round-trip each.
+    """
     from datetime import datetime as _dt, timedelta as _td
     hours = max(1, min(hours, 168))
     if _VELOCITY_CACHE["key"] == hours and time.time() - _VELOCITY_CACHE["ts"] < _VELOCITY_TTL:
         return _VELOCITY_CACHE["data"]
     now = _dt.utcnow().replace(minute=0, second=0, microsecond=0)
     start = now - _td(hours=hours - 1)
-    buckets = []
-    for i in range(hours):
-        t0 = start + _td(hours=i)
-        t1 = t0 + _td(hours=1)
-        nc = db.query(Case).filter(
-            Case.reported_at >= t0, Case.reported_at < t1).count()
-        np_ = db.query(Prediction).filter(
-            Prediction.generated_at >= t0, Prediction.generated_at < t1).count()
-        buckets.append({"t": t0.isoformat(), "complaints": nc,
-                        "predictions": np_})
+    end = now + _td(hours=1)
+    case_ts = [r[0] for r in db.query(Case.reported_at).filter(
+        Case.reported_at >= start, Case.reported_at < end).all()]
+    pred_ts = [r[0] for r in db.query(Prediction.generated_at).filter(
+        Prediction.generated_at >= start, Prediction.generated_at < end).all()]
+    buckets = [{"t": (start + _td(hours=i)).isoformat(),
+                "complaints": 0, "predictions": 0} for i in range(hours)]
+    for ts in case_ts:
+        if not ts:
+            continue
+        idx = int((ts.replace(minute=0, second=0, microsecond=0) - start).total_seconds() // 3600)
+        if 0 <= idx < hours:
+            buckets[idx]["complaints"] += 1
+    for ts in pred_ts:
+        if not ts:
+            continue
+        idx = int((ts.replace(minute=0, second=0, microsecond=0) - start).total_seconds() // 3600)
+        if 0 <= idx < hours:
+            buckets[idx]["predictions"] += 1
     data = {"hours": hours, "buckets": buckets}
     _VELOCITY_CACHE.update({"ts": time.time(), "key": hours, "data": data})
     return data
@@ -587,16 +612,33 @@ def model_metrics(role: str = Depends(require_roles("BANK_ANALYST"))):
     }
 
 @app.get("/api/v1/alerts")
-def list_alerts(db: Session = Depends(get_db),
+def list_alerts(limit: int = 100, offset: int = 0,
+                db: Session = Depends(get_db),
                 role: str = Depends(require_roles("BANK_ANALYST"))):
     from app.db.models import Prediction, ATM
     from datetime import datetime, timedelta
-    
+
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    cache_key = (limit, offset)
+    if _ALERTS_CACHE["key"] == cache_key and time.time() - _ALERTS_CACHE["ts"] < _ALERTS_TTL:
+        return _ALERTS_CACHE["data"]
+
     results = []
-    alerts = db.query(Alert).order_by(Alert.id.desc()).limit(100).all()
+    alerts = db.query(Alert).order_by(Alert.id.desc()).offset(offset).limit(limit).all()
+    # P0: batch lookups (was 2 queries per alert = ~200 round-trips)
+    pred_ids = [a.prediction_id for a in alerts if a.prediction_id]
+    pred_map = {p.id: p for p in db.query(Prediction).filter(
+        Prediction.id.in_(pred_ids)).all()} if pred_ids else {}
+    atm_ids = [p.atm_id for p in pred_map.values() if p.atm_id]
+    atm_map = {a.id: a for a in db.query(ATM).filter(
+        ATM.id.in_(atm_ids)).all()} if atm_ids else {}
+    if _ATM_CACHE:
+        for a in _ATM_CACHE:
+            atm_map.setdefault(a.id, a)
     for a in alerts:
-        p = db.query(Prediction).filter(Prediction.id == a.prediction_id).first() if a.prediction_id else None
-        atm = db.query(ATM).filter(ATM.id == p.atm_id).first() if p else None
+        p = pred_map.get(a.prediction_id) if a.prediction_id else None
+        atm = atm_map.get(p.atm_id) if p else None
         
         c_at = a.created_at or datetime.utcnow()
         w_start = c_at
@@ -613,6 +655,7 @@ def list_alerts(db: Session = Depends(get_db),
             "created_at": c_at.isoformat(),
             "status": "NEW" if a.status == "OPEN" else a.status
         })
+    _ALERTS_CACHE.update({"ts": time.time(), "key": cache_key, "data": results})
     return results
 
 @app.post("/api/v1/alerts/{alert_id}/acknowledge")
@@ -621,6 +664,7 @@ def ack(alert_id: int, db: Session = Depends(get_db),
     a = db.query(Alert).filter(Alert.id == alert_id).first()
     if not a: raise HTTPException(404, "alert not found")
     a.status = "ACKED"; db.commit()
+    _ALERTS_CACHE["ts"] = 0.0  # P1: invalidate list cache
     audit(db, role, "acknowledge", "alert", alert_id)
     return {"alert_id": alert_id, "status": "ACKED"}
 
@@ -632,6 +676,7 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db),
     a = db.query(Alert).filter(Alert.id == alert_id).first()
     if not a: raise HTTPException(404, "alert not found")
     a.status = "RESOLVED"; db.commit()
+    _ALERTS_CACHE["ts"] = 0.0  # P1: invalidate list cache
     audit(db, role, "resolve", "alert", alert_id)
     return {"alert_id": alert_id, "status": "RESOLVED"}
 
@@ -681,12 +726,21 @@ def timeline(case_id: int, db: Session = Depends(get_db),
     for t in db.query(Transaction).filter(Transaction.case_id == case_id).all():
         ev.append({"t": (t.timestamp or c.reported_at).isoformat(), "kind": "transaction",
                    "text": f"{t.transaction_type} ₹{t.amount} {t.transaction_id}"})
-    for w in db.query(Withdrawal).filter(Withdrawal.linked_case_id == case_id).all():
-        a = db.query(ATM).filter(ATM.id == w.atm_id).first()
+    withdrawals = db.query(Withdrawal).filter(Withdrawal.linked_case_id == case_id).all()
+    preds_all = db.query(Prediction).filter(Prediction.case_id == case_id).all()
+    # P0: single ATM map for both loops (was 1 query per row)
+    _atm_ids = {w.atm_id for w in withdrawals} | {p.atm_id for p in preds_all}
+    _atm_map = {a.id: a for a in db.query(ATM).filter(ATM.id.in_(
+        list(_atm_ids))).all()} if _atm_ids else {}
+    if _ATM_CACHE:
+        for a in _ATM_CACHE:
+            _atm_map.setdefault(a.id, a)
+    for w in withdrawals:
+        a = _atm_map.get(w.atm_id)
         ev.append({"t": w.timestamp.isoformat(), "kind": "withdrawal",
                    "text": f"₹{w.amount} at {a.atm_code if a else w.atm_id}"})
-    for p in db.query(Prediction).filter(Prediction.case_id == case_id).all():
-        a = db.query(ATM).filter(ATM.id == p.atm_id).first()
+    for p in preds_all:
+        a = _atm_map.get(p.atm_id)
         ev.append({"t": p.generated_at.isoformat(), "kind": "prediction",
                    "text": f"{a.atm_code if a else p.atm_id} {p.prediction_score} {p.risk_level}"})
     for al in db.query(Alert).filter(Alert.case_id == case_id).all():
@@ -706,7 +760,9 @@ def explanations(case_id: int, db: Session = Depends(get_db),
     p = db.query(Prediction).filter(Prediction.case_id == case_id).order_by(
         Prediction.prediction_score.desc()).first()
     if not p: raise HTTPException(404, "no predictions yet")
-    a = db.query(ATM).filter(ATM.id == p.atm_id).first()
+    a = next((x for x in _ATM_CACHE if x.id == p.atm_id), None) if _ATM_CACHE else None
+    if a is None:
+        a = db.query(ATM).filter(ATM.id == p.atm_id).first()
     pairs = build_features_batch(db, c, [a])
     feats = pairs[0][1] if pairs else {}
     return {"case_id": case_id, "atm_id": a.atm_code if a else None,
@@ -726,9 +782,14 @@ def stored_predictions(case_id: int, limit: int = 20,
     rows = db.query(Prediction).filter(Prediction.case_id == case_id).order_by(
         Prediction.prediction_score.desc()).limit(limit).all()
     atm_lookup = {a.id: a for a in _ATM_CACHE} if _ATM_CACHE else {}
+    # P0: one IN query for cache misses (was 1 query per missing ATM)
+    missing = [p.atm_id for p in rows if p.atm_id not in atm_lookup]
+    if missing:
+        for a in db.query(ATM).filter(ATM.id.in_(missing)).all():
+            atm_lookup.setdefault(a.id, a)
     out = []
     for p in rows:
-        a = atm_lookup.get(p.atm_id) or db.query(ATM).filter(ATM.id == p.atm_id).first()
+        a = atm_lookup.get(p.atm_id)
         out.append({"atm_id": a.atm_code if a else f"ATM-{p.atm_id}",
                     "lat": a.lat if a else None, "lon": a.lon if a else None,
                     "state": a.state if a else "",
@@ -768,12 +829,19 @@ def report(case_id: int, db: Session = Depends(get_db),
         Prediction.prediction_score.desc()).limit(5).all()
     lines = [f"Top-{len(preds)} predicted cash-out locations (model: " +
              (preds[0].model_version if preds else "n/a") + "):"]
+    # P0: batch ATM fetch (was 1 query per prediction)
+    _rep_ids = [p.atm_id for p in preds if p.atm_id]
+    _rep_atms = {a.id: a for a in db.query(ATM).filter(
+        ATM.id.in_(_rep_ids)).all()} if _rep_ids else {}
+    if _ATM_CACHE:
+        for _ca in _ATM_CACHE:
+            _rep_atms.setdefault(_ca.id, _ca)
     for p in preds:
-        a = db.query(ATM).filter(ATM.id == p.atm_id).first()
+        a = _rep_atms.get(p.atm_id)
         lines.append(f"- {a.atm_code if a else p.atm_id} ({a.state if a else '?'}) "
                      f"score={p.prediction_score} risk={p.risk_level} cell={p.h3_cell}")
-    n_tx = db.query(Transaction).filter(Transaction.case_id == case_id).count()
     txns = db.query(Transaction).filter(Transaction.case_id == case_id).all()
+    n_tx = len(txns)
     mule_refs = sorted({t.destination_account_ref for t in txns if t.destination_account_ref})
     # Suspect entities present on the file (masked — full values stay in DB).
     def _mask(v):
@@ -852,8 +920,15 @@ def trail(case_id: int, db: Session = Depends(get_db),
         G.add_edge("victim", c.destination_account_ref, amount=c.fraud_amount)
     preds = db.query(Prediction).filter(Prediction.case_id == case_id).order_by(
         Prediction.prediction_score.desc()).limit(5).all()
+    # P0: batch ATM fetch (was 1 query per prediction)
+    _trail_atm_ids = [p.atm_id for p in preds if p.atm_id]
+    _trail_atms = {a.id: a for a in db.query(ATM).filter(
+        ATM.id.in_(_trail_atm_ids)).all()} if _trail_atm_ids else {}
+    if _ATM_CACHE:
+        for _ca in _ATM_CACHE:
+            _trail_atms.setdefault(_ca.id, _ca)
     for p in preds:
-        a = db.query(ATM).filter(ATM.id == p.atm_id).first()
+        a = _trail_atms.get(p.atm_id)
         node = a.atm_code if a else f"ATM-{p.atm_id}"
         G.add_node(node, kind="atm", label=node, score=p.prediction_score,
                    risk=p.risk_level, lat=a.lat if a else None,

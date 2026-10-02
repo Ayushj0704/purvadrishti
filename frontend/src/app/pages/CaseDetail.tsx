@@ -76,30 +76,92 @@ export function CaseDetail() {
   const [minRisk, setMinRisk] = useState("ALL");
   const [notFound, setNotFound] = useState(false);
 
+  // P1 read-first: explicit scoring only. Stored ranking loads with the
+  // file; POST /predictions runs only via the Score / Re-score button.
+  const handleScore = async () => {
+    if (!id || !writable || scoring) return;
+    setScoring(true);
+    try {
+      const pred = await casesApi.predict(id, { horizon_minutes: horizon });
+      setPredictions(pred);
+      setModelVersion(pred.model_version);
+      const tl = await casesApi.getTimeline(id).catch(() => null);
+      if (tl) {
+        const mapped = tl.events.map((e, i) => ({
+          id: String(i),
+          timestamp: e.t,
+          description: e.text,
+          type: TIMELINE_KIND[e.kind] ?? "ACTION",
+        }));
+        setTimeline(mapped.slice(-30));
+        setTimelineTotal(mapped.length);
+      }
+    } finally {
+      setScoring(false);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     setIsLoading(true);
     setNotFound(false);
+    setDetailsDone(false);
 
     const load = async () => {
       try {
-        const c = await casesApi.getCase(id);
-        if (cancelled) return;
-        setCaseData(c);
-
-        const [expl, tl] = await Promise.all([
-          casesApi.getExplanations(id).catch(() => null),
+        // P1: single parallel fan-out (was two sequential effects, the
+        // second blocked on caseData and re-ran predict per horizon).
+        const [c, stored, tr, al, tl, expl] = await Promise.all([
+          casesApi.getCase(id),
+          casesApi.getStoredPredictions(id, 5).catch(() => null),
+          casesApi.getTrail(id).catch(() => null),
+          alertsApi.getAlerts(100, 0).catch(() => [] as Alert[]),
           casesApi.getTimeline(id).catch(() => null),
+          casesApi.getExplanations(id).catch(() => null),
         ]);
         if (cancelled) return;
+        setCaseData(c);
+        if (tr) setTrail(tr);
+        setOpenAlert(al.find((a) => a.case_id === Number(id) && a.status === "NEW") ?? null);
+        if (stored && stored.count > 0) {
+          // Adapt stored rows to the live-predict shape for shared tables.
+          setPredictions({
+            case_id: String(id),
+            generated_at: stored.predictions[0]?.generated_at ?? "",
+            horizon_minutes: horizon,
+            model_version: stored.predictions[0]?.model_version ?? "",
+            basis_note: "",
+            ranking_note: `Latest stored ranking · ${stored.count} candidates. Re-score for a fresh run.`,
+            heat_watch: [],
+            predictions: stored.predictions.map((p) => ({
+              atm_id: p.atm_id,
+              lat: p.lat ?? 0,
+              lon: p.lon ?? 0,
+              state: p.state,
+              district: p.district,
+              city: "",
+              score: p.score,
+              risk_level: p.risk_level,
+              scores: {},
+              predicted_window: "",
+              expected_between: null,
+              expected_min: null,
+              basis: "",
+              heat: { n2h: 0, n6h: 0, level: "LOW" },
+              best_bet: false,
+              h3_cell: p.h3_cell,
+              top_reasons: [],
+            })),
+          } as PredictResponse);
+          const mv = stored.predictions[0]?.model_version;
+          if (mv) setModelVersion(mv);
+        }
         if (expl) {
           setExplanation(featuresToShap(expl.features));
           setModelVersion(expl.model_version);
         }
         if (tl) {
-          // Cap a runaway event list (every scored candidate logs a row) —
-          // newest first, with the total preserved in the header count.
           const mapped = tl.events.map((e, i) => ({
             id: String(i),
             timestamp: e.t,
@@ -112,7 +174,10 @@ export function CaseDetail() {
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setDetailsDone(true);
+        }
       }
     };
 
@@ -120,38 +185,9 @@ export function CaseDetail() {
     return () => {
       cancelled = true;
     };
+    // horizon excluded: switching horizon no longer auto re-scores.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  // Horizon-scoped scoring: re-runs the model at the selected horizon and
-  // refreshes every surface derived from predictions.
-  useEffect(() => {
-    if (!id || !caseData) return;
-    let cancelled = false;
-    setScoring(true);
-    setDetailsDone(false);
-
-    const score = async () => {
-      const [pred, tr, al] = await Promise.all([
-        writable ? casesApi.predict(id, { horizon_minutes: horizon }).catch(() => null) : null,
-        casesApi.getTrail(id).catch(() => null),
-        alertsApi.getAlerts().catch(() => [] as Alert[]),
-      ]);
-      if (cancelled) return;
-      if (pred) {
-        setPredictions(pred);
-        setModelVersion(pred.model_version);
-      }
-      if (tr) setTrail(tr);
-      setOpenAlert(al.find((a) => a.case_id === Number(id) && a.status === "NEW") ?? null);
-      setScoring(false);
-      setDetailsDone(true);
-    };
-
-    score();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, caseData, horizon, writable]);
 
   const rows = predictions ? toTopKRows(predictions.predictions) : [];
   // NOTE: hooks must stay above every early return — a memo placed after
@@ -319,20 +355,30 @@ export function CaseDetail() {
             <span className="label-caps text-faint">
               Scoring horizon{scoring ? " · scoring…" : ""}
             </span>
-            <select
-              value={horizon}
-              onChange={(e) => setHorizon(Number(e.target.value))}
-              disabled={!writable}
-              aria-label="Scoring horizon"
-              title={writable ? "Re-score at this horizon" : "Requires LEA Officer role or above"}
-              className="field field-mono w-auto"
-            >
-              {HORIZON_OPTIONS.map((h) => (
-                <option key={h.minutes} value={h.minutes}>
-                  {h.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-3">
+              <select
+                value={horizon}
+                onChange={(e) => setHorizon(Number(e.target.value))}
+                disabled={!writable}
+                aria-label="Scoring horizon"
+                title={writable ? "Pick horizon, then Score" : "Requires LEA Officer role or above"}
+                className="field field-mono w-auto"
+              >
+                {HORIZON_OPTIONS.map((h) => (
+                  <option key={h.minutes} value={h.minutes}>
+                    {h.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                onClick={handleScore}
+                disabled={!writable || scoring}
+                title={writable ? "Run the model now" : "Requires LEA Officer role or above"}
+              >
+                {scoring ? "Scoring…" : predictions ? "Re-score" : "Score now"}
+              </Button>
+            </div>
           </div>
 
           <TopKTable

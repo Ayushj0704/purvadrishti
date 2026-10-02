@@ -19,7 +19,8 @@ export interface NotifyResult {
 }
 
 export const alertsApi = {
-  getAlerts: () => api.get<Alert[]>('/alerts'),
+  getAlerts: (limit = 100, offset = 0) =>
+    api.get<Alert[]>(`/alerts?limit=${limit}&offset=${offset}`),
   acknowledgeAlert: (alertId: string) => api.post(`/alerts/${alertId}/acknowledge`),
   /** Close the loop: NEW → ACKED → RESOLVED (spec §24 dispatch workflow). */
   resolveAlert: (alertId: string) => api.post(`/alerts/${alertId}/resolve`),

@@ -7,6 +7,11 @@ from app.db.session import Base
 class Case(Base):
     """1 row = 1 NCRP complaint/report. Maps to spec §18 `cases` + user NCRP table."""
     __tablename__ = "cases"
+    __table_args__ = (
+        Index("ix_cases_reported_at", "reported_at"),
+        Index("ix_cases_subcat_amount", "crime_subcategory", "fraud_amount"),
+        Index("ix_cases_states", "incident_state", "complainant_state"),
+    )
     id = Column(Integer, primary_key=True)
     # complaint identity
     external_case_id = Column(String, unique=True, index=True)  # C-100234 / ack ID
@@ -103,7 +108,8 @@ class Withdrawal(Base):
     """Withdrawal info = future observed event / prediction target (NOT known at complaint time)."""
     __tablename__ = "withdrawals"
     # P4: composite index on (atm_id, timestamp) — used by fraud_withdrawals_7d/30d feature every prediction
-    __table_args__ = (Index("ix_withdrawal_atm_ts", "atm_id", "timestamp"),)
+    __table_args__ = (Index("ix_withdrawal_atm_ts", "atm_id", "timestamp"),
+                      Index("ix_withdrawal_case", "linked_case_id"),)
     id = Column(Integer, primary_key=True)
     atm_id = Column(Integer, ForeignKey("atms.id"))
     linked_case_id = Column(Integer, ForeignKey("cases.id"), nullable=True)
@@ -115,7 +121,10 @@ class Withdrawal(Base):
 class Prediction(Base):
     __tablename__ = "predictions"
     # P4: index on case_id — queried on every /cases/{id}/predictions GET
-    __table_args__ = (Index("ix_pred_case_id", "case_id"),)
+    __table_args__ = (Index("ix_pred_case_id", "case_id"),
+                      Index("ix_pred_generated_at", "generated_at"),
+                      Index("ix_pred_score", "prediction_score"),
+                      Index("ix_pred_case_score", "case_id", "prediction_score"),)
     id = Column(Integer, primary_key=True)
     case_id = Column(Integer, ForeignKey("cases.id"))
     atm_id = Column(Integer, ForeignKey("atms.id"))
@@ -129,6 +138,8 @@ class Prediction(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
+    __table_args__ = (Index("ix_alert_case_status", "case_id", "status"),
+                      Index("ix_alert_created", "created_at"),)
     id = Column(Integer, primary_key=True)
     case_id = Column(Integer, ForeignKey("cases.id"))
     prediction_id = Column(Integer, ForeignKey("predictions.id"), nullable=True)
@@ -142,6 +153,7 @@ class Alert(Base):
 class AuditLog(Base):
     """Who did what, when. No sensitive payloads — refs only."""
     __tablename__ = "audit_logs"
+    __table_args__ = (Index("ix_audit_created", "created_at"),)
     id = Column(Integer, primary_key=True)
     actor_role = Column(String, default="demo")
     action = Column(String, index=True, default="")

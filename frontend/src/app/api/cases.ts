@@ -288,7 +288,8 @@ export interface SimilarCase {
 }
 
 export const casesApi = {
-  listCases: () => api.get<CaseSummary[]>('/cases'),
+  listCases: (limit = 100, offset = 0) =>
+    api.get<CaseSummary[]>(`/cases?limit=${limit}&offset=${offset}`),
   sampleCases: (limit = 20, state?: string) => {
     const qs = new URLSearchParams({ limit: String(limit) });
     if (state && state !== 'ALL') qs.set('state', state);

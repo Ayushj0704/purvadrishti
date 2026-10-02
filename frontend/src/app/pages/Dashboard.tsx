@@ -74,65 +74,98 @@ export function Dashboard() {
     setFilters(next);
   }, []);
 
+  const [scoring, setScoring] = useState(false);
+  const applyPredictResult = (result: {
+    predictions: Parameters<typeof toTopKRows>[0];
+    heat_watch?: Array<{ atm_id: string }>;
+    ranking_note?: string;
+  }) => {
+    const heatByAtm = new Map(
+      (result.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
+    );
+    const rows = toTopKRows(result.predictions as never);
+    for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
+    setPredictions(rows);
+    setRankingNote(result.ranking_note ?? "");
+  };
+
+  const handleRescore = useCallback(async () => {
+    if (!topCaseId || !writable || scoring) return;
+    setScoring(true);
+    try {
+      const result = await casesApi.predict(topCaseId, { horizon_minutes: horizon });
+      applyPredictResult(result);
+      setSyncedAt(new Date());
+    } catch {
+      setLoadErrors((e) => (e.includes("predictions") ? e : [...e, "predictions"]));
+    } finally {
+      setScoring(false);
+    }
+  }, [topCaseId, writable, horizon, scoring]);
+
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      // First load blanks to the radar loader; later refreshes (filters,
-      // horizon, retry) keep stale data on screen with an updating note —
-      // never a flash of empty boxes.
+      // P1: progressive render — heatmap + alerts + candidates resolve
+      // independently; stale data stays on screen during refreshes.
       const first = !bootedRef.current;
       if (first) setIsLoading(true);
       const failed: string[] = [];
 
-      // National risk layer — real H3 cells from the model.
-      try {
-        setHeatmapData(await heatmapApi.getHeatmap(filtersToHeatmapParams(filters)));
-      } catch {
-        failed.push("heatmap");
-        if (!cancelled) setHeatmapData(undefined);
-      }
-
-      // Live alert queue.
-      try {
-        const list = await alertsApi.getAlerts();
-        if (!cancelled) setAlerts(list.slice(0, 5));
-      } catch {
-        failed.push("alerts");
-        if (!cancelled) setAlerts([]);
-      }
-
-      // Ranked candidates: score the newest sampled case through the model.
-      // Writes require LEA Officer or above — bank analysts see heat + alerts.
-      if (!writable) {
-        setPredictions([]);
-        setRankingNote("");
-        setTopCaseId(undefined);
-      } else {
+      // P1 read-first: stored predictions, POST only via Re-score button.
+      const loadCandidates = async () => {
+        if (!writable) {
+          setPredictions([]);
+          setRankingNote("");
+          setTopCaseId(undefined);
+          return;
+        }
         try {
           const samples = await casesApi.sampleCases(1);
-          if (samples.length > 0 && !cancelled) {
-            const sample = samples[0];
-            const [result, tr] = await Promise.all([
-              casesApi.predict(sample.case_id, { horizon_minutes: horizon }),
-              casesApi.getTrail(sample.case_id).catch(() => null),
-            ]);
+          if (samples.length === 0 || cancelled) {
             if (!cancelled) {
-              const heatByAtm = new Map(
-                (result.heat_watch ?? []).map((w) => [w.atm_id, "HIGH"]),
-              );
-              const rows = toTopKRows(result.predictions);
-              for (const r of rows) r.heat_level = heatByAtm.get(r.atm_id) ?? "LOW";
-              setPredictions(rows);
-              setRankingNote(result.ranking_note ?? "");
-              setTopCaseId(String(sample.case_id));
-              setEntities(trailToEntities(tr));
+              setPredictions([]);
+              setRankingNote("");
+              setTopCaseId(undefined);
+              setEntities(undefined);
             }
-          } else if (!cancelled) {
-            setPredictions([]);
-            setRankingNote("");
-            setTopCaseId(undefined);
-            setEntities(undefined);
+            return;
+          }
+          const sample = samples[0];
+          if (!cancelled) setTopCaseId(String(sample.case_id));
+          const [stored, tr] = await Promise.all([
+            casesApi.getStoredPredictions(sample.case_id, 5).catch(() => null),
+            casesApi.getTrail(sample.case_id).catch(() => null),
+          ]);
+          if (cancelled) return;
+          if (stored && stored.count > 0) {
+            const rows = stored.predictions.map((p) => ({
+              atm_id: p.atm_id,
+              state: p.state,
+              risk_score: p.score,
+              risk_level: p.risk_level,
+              lat: p.lat ?? undefined,
+              lon: p.lon ?? undefined,
+              district: p.district,
+              heat_level: "LOW" as const,
+            }));
+            setPredictions(rows as never);
+            setRankingNote(`Latest stored ranking · ${stored.count} candidates.`);
+            setEntities(trailToEntities(tr));
+          } else {
+            // No history yet — score once so the panel isn't empty.
+            // Subsequent views read stored; re-runs need Re-score.
+            try {
+              const result = await casesApi.predict(
+                sample.case_id, { horizon_minutes: horizon },
+              );
+              if (cancelled) return;
+              applyPredictResult(result);
+              setEntities(trailToEntities(tr));
+            } catch {
+              failed.push("predictions");
+            }
           }
         } catch {
           failed.push("predictions");
@@ -143,7 +176,29 @@ export function Dashboard() {
             setEntities(undefined);
           }
         }
-      }
+      };
+
+      await Promise.all([
+        heatmapApi
+          .getHeatmap(filtersToHeatmapParams(filters))
+          .then((d) => {
+            if (!cancelled) setHeatmapData(d);
+          })
+          .catch(() => {
+            failed.push("heatmap");
+            if (!cancelled) setHeatmapData(undefined);
+          }),
+        alertsApi
+          .getAlerts(5, 0)
+          .then((list) => {
+            if (!cancelled) setAlerts(list.slice(0, 5));
+          })
+          .catch(() => {
+            failed.push("alerts");
+            if (!cancelled) setAlerts([]);
+          }),
+        loadCandidates(),
+      ]);
 
       if (!cancelled) {
         setLoadErrors(failed);
@@ -158,7 +213,10 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [filters, reloadKey, writable, horizon]);
+    // NOTE: horizon intentionally excluded — changing it no longer
+    // re-scores (50-row INSERT). Use Re-score for an explicit run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, reloadKey, writable]);
 
   const candidateAtms = useMemo(() => toAtmPoints(predictions), [predictions]);
 
@@ -328,6 +386,17 @@ export function Dashboard() {
                   {visibleAtms?.features.length ?? 0} pins
                   {refreshing ? " · updating…" : ""}
                 </span>
+                {writable && topCaseId && (
+                  <button
+                    type="button"
+                    onClick={handleRescore}
+                    disabled={scoring || isLoading}
+                    title="Run the model now (writes 50 predictions)"
+                    className="label-caps rounded-md border border-hairline px-3 py-1.5 text-muted transition-colors hover:border-accent hover:text-ink disabled:opacity-50"
+                  >
+                    {scoring ? "Scoring…" : "Re-score"}
+                  </button>
+                )}
               </div>
               {/* `flex-1` so the map absorbs whatever height the row takes from
                   the taller Top-K/alerts column beside it. The clamp is kept as a
